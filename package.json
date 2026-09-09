@@ -1,0 +1,40 @@
+{
+  "name": "job-hunt-ai-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "prisma:generate": "prisma generate --schema prisma/schema.prisma",
+    "prisma:generate:postgres": "prisma generate --schema prisma/schema.postgres.prisma",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:db:push": "prisma db push --schema prisma/schema.prisma",
+    "prisma:db:push:postgres": "prisma db push --schema prisma/schema.postgres.prisma",
+    "prisma:seed": "node prisma/seed.js",
+    "predeploy:check": "node scripts/predeploy-check.mjs",
+    "prepare:env:production": "node scripts/prepare-production-env.mjs"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.7.0",
+    "@vercel/blob": "^2.3.3",
+    "clsx": "^2.1.1",
+    "mammoth": "^1.9.1",
+    "next": "^15.3.0",
+    "pdf-parse": "^2.4.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "zod": "^3.24.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.3",
+    "prisma": "^6.7.0",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.3"
+  }
+}

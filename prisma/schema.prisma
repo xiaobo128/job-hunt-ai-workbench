@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum SourceType {
+  LINK
+  TEXT
+  SCREENSHOT
+  MANUAL
+}
+
+enum ApplicationStage {
+  INTERESTED
+  READY_TO_APPLY
+  APPLIED
+  ASSESSMENT
+  INTERVIEW
+  FIRST_INTERVIEW
+  SECOND_INTERVIEW
+  THIRD_INTERVIEW
+  FINAL_INTERVIEW
+  NEGOTIATION
+  OFFER
+  CLOSED
+}
+
+enum EventType {
+  NOTE
+  ASSESSMENT
+  INTERVIEW
+  OFFER
+  REJECTION
+  DEADLINE
+}
+
+enum ResumeVariantSourceType {
+  AI_DRAFT
+  MANUAL_UPLOAD
+}
+
+enum ResumeAssetKind {
+  PDF
+  DOCX
+  DOC
+  IMAGE
+  TEXT
+  OTHER
+}
+
+enum ResumeAssetMatchStatus {
+  UNCHECKED
+  MATCHED
+  POSSIBLE_MISMATCH
+}
+
+enum AgentRunKind {
+  JOB_IMPORT
+  STATUS_SYNC
+  RESUME_VARIANT_IMPORT
+  NOTIFICATION_IMPORT
+  TAILOR_REQUEST
+}
+
+enum AgentRunStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+}
+
+enum AgentRunSource {
+  MANUAL
+  API
+  WEBHOOK
+  INTERNAL_AI
+}
+
+model User {
+  id                     String      @id @default(cuid())
+  email                  String      @unique
+  name                   String?
+  passwordHash           String
+  resumeTailorWebhookUrl String?
+  statusSyncWebhookUrl   String?
+  notificationWebhookUrl String?
+  webhookSecret          String?
+  aiProvider             String?
+  aiApiKey               String?
+  aiApiBaseUrl           String?
+  aiForwardHost          String?
+  aiModel                String?
+  aiVisionModel          String?
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
+  jobLeads               JobLead[]
+  resumes                Resume[]
+  sessions               Session[]
+  apiTokens              ApiToken[]
+  agentRuns              AgentRun[]
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  tokenHash    String   @unique
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ApiToken {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  tokenHash  String    @unique
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model JobLead {
+  id               String             @id @default(cuid())
+  ownerId          String
+  parseProvider    String?
+  parseNote        String?
+  needsReview      Boolean            @default(true)
+  reviewedAt       DateTime?
+  sourceType       SourceType
+  sourceName       String?
+  sourceUrl        String?
+  artifactName     String?
+  artifactUrl      String?
+  artifactNamesJson String?
+  artifactUrlsJson  String?
+  companyName      String
+  roleTitle        String
+  city             String?
+  seniority        String?
+  salaryRange      String?
+  skills           String
+  responsibilities String
+  requirements     String
+  rawContent       String
+  parsedSummary    String?
+  status           ApplicationStage   @default(READY_TO_APPLY)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  owner            User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  application      Application?
+  tailorRuns       ResumeTailorRun[]
+  resumeVariants   ResumeVariant[]
+  agentRuns        AgentRun[]
+}
+
+model Application {
+  id              String           @id @default(cuid())
+  jobLeadId       String           @unique
+  currentStage    ApplicationStage @default(READY_TO_APPLY)
+  appliedAt       DateTime?
+  submissionChannel String?
+  nextAction      String?
+  nextActionDueAt DateTime?
+  note            String?
+  updatedAt       DateTime         @updatedAt
+  createdAt       DateTime         @default(now())
+  jobLead         JobLead          @relation(fields: [jobLeadId], references: [id], onDelete: Cascade)
+  events          Event[]
+}
+
+model Resume {
+  id               String            @id @default(cuid())
+  ownerId          String
+  title            String
+  rawText          String?
+  note             String?
+  fileUrl          String?
+  artifactName     String?
+  artifactMimeType String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  owner            User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  assets           ResumeAsset[]
+  tailorRuns       ResumeTailorRun[]
+  variants         ResumeVariant[]
+  agentRuns        AgentRun[]
+}
+
+model ResumeAsset {
+  id               String                 @id @default(cuid())
+  resumeId         String
+  kind             ResumeAssetKind
+  matchStatus      ResumeAssetMatchStatus @default(UNCHECKED)
+  isPreviewSource  Boolean                @default(false)
+  isEditingSource  Boolean                @default(false)
+  fileUrl          String
+  artifactName     String
+  artifactMimeType String?
+  extractedText    String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  resume           Resume                 @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+}
+
+model ResumeVariant {
+  id               String                  @id @default(cuid())
+  resumeId         String
+  jobLeadId        String?
+  sourceType       ResumeVariantSourceType
+  title            String
+  note             String?
+  fileUrl          String?
+  artifactName     String?
+  artifactMimeType String?
+  draftText        String?
+  tailorRunId      String?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  resume           Resume                  @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  jobLead          JobLead?                @relation(fields: [jobLeadId], references: [id], onDelete: SetNull)
+  agentRuns        AgentRun[]
+}
+
+model ResumeTailorRun {
+  id              String   @id @default(cuid())
+  resumeId        String
+  jobLeadId       String
+  aiProvider      String?
+  aiNote          String?
+  summary         String
+  draftTitle      String?
+  draftText       String?
+  suggestionsJson String
+  createdAt       DateTime @default(now())
+  resume          Resume   @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  jobLead         JobLead  @relation(fields: [jobLeadId], references: [id], onDelete: Cascade)
+}
+
+model Event {
+  id            String      @id @default(cuid())
+  applicationId String
+  aiProvider    String?
+  aiNote        String?
+  eventType     EventType
+  eventTime     DateTime?
+  title         String
+  artifactName  String?
+  artifactUrl   String?
+  detailsJson   String
+  createdAt     DateTime    @default(now())
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  agentRuns     AgentRun[]
+}
+
+model AgentRun {
+  id              String         @id @default(cuid())
+  userId          String
+  kind            AgentRunKind
+  status          AgentRunStatus
+  source          AgentRunSource
+  inputJson       String?
+  outputJson      String?
+  errorMessage    String?
+  jobLeadId       String?
+  resumeId        String?
+  resumeVariantId String?
+  eventId         String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobLead         JobLead?       @relation(fields: [jobLeadId], references: [id], onDelete: SetNull)
+  resume          Resume?        @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+  resumeVariant   ResumeVariant? @relation(fields: [resumeVariantId], references: [id], onDelete: SetNull)
+  event           Event?         @relation(fields: [eventId], references: [id], onDelete: SetNull)
+}
