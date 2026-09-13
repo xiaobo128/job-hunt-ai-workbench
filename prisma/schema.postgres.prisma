@@ -58,6 +58,14 @@ enum ResumeAssetMatchStatus {
   POSSIBLE_MISMATCH
 }
 
+enum ResumeParseStatus {
+  PROCESSING
+  NEEDS_REVIEW
+  CONFIRMED
+  FAILED
+  SUPERSEDED
+}
+
 enum AgentRunKind {
   JOB_IMPORT
   STATUS_SYNC
@@ -80,8 +88,8 @@ enum AgentRunSource {
 }
 
 model User {
-  id                     String      @id @default(cuid())
-  email                  String      @unique
+  id                     String     @id @default(cuid())
+  email                  String     @unique
   name                   String?
   passwordHash           String
   resumeTailorWebhookUrl String?
@@ -94,8 +102,8 @@ model User {
   aiForwardHost          String?
   aiModel                String?
   aiVisionModel          String?
-  createdAt              DateTime    @default(now())
-  updatedAt              DateTime    @updatedAt
+  createdAt              DateTime   @default(now())
+  updatedAt              DateTime   @updatedAt
   jobLeads               JobLead[]
   resumes                Resume[]
   sessions               Session[]
@@ -124,11 +132,11 @@ model ApiToken {
 }
 
 model JobLead {
-  id                String             @id @default(cuid())
+  id                String            @id @default(cuid())
   ownerId           String
   parseProvider     String?
   parseNote         String?
-  needsReview       Boolean            @default(true)
+  needsReview       Boolean           @default(true)
   reviewedAt        DateTime?
   sourceType        SourceType
   sourceName        String?
@@ -147,10 +155,10 @@ model JobLead {
   requirements      String
   rawContent        String
   parsedSummary     String?
-  status            ApplicationStage   @default(READY_TO_APPLY)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-  owner             User               @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  status            ApplicationStage  @default(READY_TO_APPLY)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  owner             User              @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   application       Application?
   tailorRuns        ResumeTailorRun[]
   resumeVariants    ResumeVariant[]
@@ -158,18 +166,18 @@ model JobLead {
 }
 
 model Application {
-  id              String           @id @default(cuid())
-  jobLeadId       String           @unique
-  currentStage    ApplicationStage @default(READY_TO_APPLY)
-  appliedAt       DateTime?
+  id                String           @id @default(cuid())
+  jobLeadId         String           @unique
+  currentStage      ApplicationStage @default(READY_TO_APPLY)
+  appliedAt         DateTime?
   submissionChannel String?
-  nextAction      String?
-  nextActionDueAt DateTime?
-  note            String?
-  updatedAt       DateTime         @updatedAt
-  createdAt       DateTime         @default(now())
-  jobLead         JobLead          @relation(fields: [jobLeadId], references: [id], onDelete: Cascade)
-  events          Event[]
+  nextAction        String?
+  nextActionDueAt   DateTime?
+  note              String?
+  updatedAt         DateTime         @updatedAt
+  createdAt         DateTime         @default(now())
+  jobLead           JobLead          @relation(fields: [jobLeadId], references: [id], onDelete: Cascade)
+  events            Event[]
 }
 
 model Resume {
@@ -188,6 +196,7 @@ model Resume {
   tailorRuns       ResumeTailorRun[]
   variants         ResumeVariant[]
   agentRuns        AgentRun[]
+  parseAttempts    ResumeParse[]
 }
 
 model ResumeAsset {
@@ -204,6 +213,30 @@ model ResumeAsset {
   createdAt        DateTime               @default(now())
   updatedAt        DateTime               @updatedAt
   resume           Resume                 @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  parseAttempts    ResumeParse[]
+}
+
+model ResumeParse {
+  id                String            @id @default(cuid())
+  resumeId          String
+  resumeAssetId     String
+  status            ResumeParseStatus @default(PROCESSING)
+  documentJson      Json?
+  schemaVersion     Int
+  provider          String
+  providerRequestId String?
+  qualityJson       Json?
+  errorCode         String?
+  errorMessage      String?
+  confirmedAt       DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  resume      Resume      @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+  resumeAsset ResumeAsset @relation(fields: [resumeAssetId], references: [id], onDelete: Cascade)
+
+  @@index([resumeId, status])
+  @@index([resumeAssetId, createdAt])
 }
 
 model ResumeVariant {

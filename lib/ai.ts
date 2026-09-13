@@ -1,5 +1,7 @@
 import { readFile } from "fs/promises";
 import { z } from "zod";
+import { findResumeAnalysisEvidenceFailure, ResumeAnalysisSchema, type ResumeAnalysis } from "@/lib/resume-analysis";
+import type { ResumeDocument } from "@/lib/resume-parsing/core";
 
 const importedJobSchema = z.object({
   sourceType: z.enum(["LINK", "TEXT", "SCREENSHOT", "MANUAL"]),
@@ -288,7 +290,7 @@ async function createStructuredResponse<T>({
   const apiKey = getApiKey(settings);
 
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is missing");
+    throw new StructuredResponseError("MISSING_API_KEY");
   }
 
   const content: Array<Record<string, string>> = [{ type: "input_text", text: userPrompt }];
@@ -301,7 +303,9 @@ async function createStructuredResponse<T>({
     });
   }
 
-  const response = await fetch(resolveResponsesUrl(settings), {
+  let response: Response;
+  try {
+    response = await fetch(resolveResponsesUrl(settings), {
     method: "POST",
     signal: createRequestTimeoutSignal(OPENAI_REQUEST_TIMEOUT_MS),
     headers: {
@@ -341,21 +345,63 @@ async function createStructuredResponse<T>({
         }
       }
     })
-  });
-
-  if (!response.ok) {
-    const bodyText = await response.text();
-    throw new Error(`OpenAI request failed (${response.status}): ${bodyText.slice(0, 400)}`);
+    });
+  } catch (error) {
+    const cause = getSafeTransportCause(error);
+    throw new StructuredResponseError(
+      error instanceof DOMException && error.name === "TimeoutError" ? "TIMEOUT" : "TRANSPORT",
+      undefined,
+      undefined,
+      cause
+    );
   }
 
-  const json = (await response.json()) as unknown;
+  if (!response.ok) {
+    throw new StructuredResponseError(`HTTP_${response.status}`, response.status, getProviderRequestId(response));
+  }
+
+  let json: unknown;
+  try {
+    json = (await response.json()) as unknown;
+  } catch {
+    throw new StructuredResponseError("INVALID_JSON", response.status, getProviderRequestId(response));
+  }
   const raw = extractOutputTextFromResponseJson(json);
 
   if (!raw) {
-    throw new Error(`OpenAI response did not include output_text: ${JSON.stringify(json).slice(0, 400)}`);
+    throw new StructuredResponseError("MISSING_OUTPUT_TEXT", response.status, getProviderRequestId(response));
   }
 
-  return schema.parse(parseStructuredJsonText(raw));
+  try {
+    return schema.parse(parseStructuredJsonText(raw));
+  } catch (error) {
+    if (error instanceof z.ZodError) throw error;
+    throw new StructuredResponseError("INVALID_STRUCTURED_JSON", response.status, getProviderRequestId(response));
+  }
+}
+
+class StructuredResponseError extends Error {
+  constructor(
+    readonly code: string,
+    readonly status?: number,
+    readonly requestId?: string | null,
+    readonly cause?: { type: string; code?: string }
+  ) {
+    super(code);
+    this.name = "StructuredResponseError";
+  }
+}
+
+function getProviderRequestId(response: Response) {
+  return response.headers.get("x-request-id") || response.headers.get("request-id") || response.headers.get("x-openai-request-id");
+}
+
+function getSafeTransportCause(error: unknown) {
+  const cause = typeof error === "object" && error !== null && "cause" in error ? error.cause : null;
+  const source = cause && typeof cause === "object" ? cause : error;
+  const type = source instanceof Error ? source.name : "UnknownError";
+  const code = typeof source === "object" && source !== null && "code" in source && typeof source.code === "string" ? source.code : undefined;
+  return { type, code };
 }
 
 function zodToJsonSchema(name: string) {
@@ -469,6 +515,53 @@ function zodToJsonSchema(name: string) {
         draftText: { type: "string" }
       },
       required: ["summary", "draftTitle", "draftText"]
+    };
+  }
+
+  if (name === "resume_analysis_v1") {
+    const evidenceRef = {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        sectionId: { type: "string" },
+        itemId: { type: ["string", "null"] },
+        bulletId: { type: ["string", "null"] }
+      },
+      required: ["sectionId", "itemId", "bulletId"]
+    };
+    const dimension = {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        rating: { type: ["integer", "null"], enum: [1, 2, 3, 4, 5, null] },
+        evidenceRefs: { type: "array", items: evidenceRef },
+        gap: { type: ["string", "null"] },
+        suggestion: { type: ["string", "null"] }
+      },
+      required: ["rating", "evidenceRefs", "gap", "suggestion"]
+    };
+
+    return {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        education: dimension,
+        specialRequirements: dimension,
+        workExperience: dimension,
+        projectExperience: dimension,
+        skills: dimension,
+        domainRelevance: dimension,
+        strengths: dimension
+      },
+      required: [
+        "education",
+        "specialRequirements",
+        "workExperience",
+        "projectExperience",
+        "skills",
+        "domainRelevance",
+        "strengths"
+      ]
     };
   }
 
@@ -750,6 +843,80 @@ ${input.resumeText}`,
     note: input.mode === "advice" ? "未配置 OPENAI_API_KEY，当前使用本地分析模板。" : "未配置 OPENAI_API_KEY，当前使用本地草稿模板。",
     data: fallbackTailorResume(input)
   };
+}
+
+export class ResumeAnalysisGenerationError extends Error {
+  constructor(
+    readonly stage: "configuration" | "provider" | "schema" | "evidence",
+    readonly code: string,
+    readonly diagnostics?: {
+      issues?: Array<{ path: Array<string | number>; code: string; message: string }>;
+      evidence?: import("@/lib/resume-analysis").ResumeAnalysisEvidenceFailure;
+      provider?: { status?: number; requestId?: string | null; cause?: { type: string; code?: string } };
+    }
+  ) {
+    super("简历分析暂时无法生成，请稍后重试。");
+    this.name = "ResumeAnalysisGenerationError";
+  }
+}
+
+export async function createResumeAnalysis(input: {
+  document: ResumeDocument;
+  companyName: string;
+  roleTitle: string;
+  rawContent: string;
+  parsedSummary: string | null;
+  responsibilities: string[];
+  requirements: string[];
+  skills: string[];
+  customInstructions?: string;
+  settings?: UserAiSettings;
+}): Promise<AIResult<ResumeAnalysis>> {
+  if (!hasOpenAI(input.settings)) {
+    throw new ResumeAnalysisGenerationError("configuration", "OPENAI_NOT_CONFIGURED");
+  }
+
+  try {
+    const data = await createStructuredResponse({
+      schema: ResumeAnalysisSchema,
+      schemaName: "resume_analysis_v1",
+      model: getTextModel(input.settings),
+      systemPrompt:
+        "你是简历与 JD 的证据型分析助手。仅输出固定七维对象：education、specialRequirements、workExperience、projectExperience、skills、domainRelevance、strengths。不得增加任何其他维度、整体分数或百分比。每个维度必须有 rating、evidenceRefs、gap、suggestion。rating 为 null 只能表示 JD 未涉及该维度，此时 evidenceRefs 必须为空且 gap、suggestion 必须为 null；JD 涉及但简历无证据时应给低 rating、明确 gap 和 suggestion。strengths 必须有输入简历中的可验证 evidenceRefs，不能泛化表扬。evidenceRefs 只能直接使用输入 ResumeDocument 现有的 sectionId、itemId、bulletId，禁止虚构或猜测 ID。",
+      userPrompt: `岗位公司: ${input.companyName}
+岗位名称: ${input.roleTitle}
+完整 JD: ${input.rawContent}
+岗位摘要: ${input.parsedSummary || "无"}
+岗位职责: ${input.responsibilities.join("；") || "无"}
+岗位要求: ${input.requirements.join("；") || "无"}
+技能关键词: ${input.skills.join("；") || "无"}
+用户额外要求: ${input.customInstructions?.trim() || "无"}
+
+CONFIRMED ResumeDocument（其中 ID 必须原样用于 evidenceRefs）:
+${JSON.stringify(input.document)}`,
+      settings: input.settings
+    });
+
+    const evidenceFailure = findResumeAnalysisEvidenceFailure(data, input.document);
+    if (evidenceFailure) {
+      throw new ResumeAnalysisGenerationError("evidence", evidenceFailure.reason, { evidence: evidenceFailure });
+    }
+
+    return { provider: "openai", note: "已使用 OpenAI 生成七维简历分析。", data };
+  } catch (error) {
+    if (error instanceof ResumeAnalysisGenerationError) throw error;
+    if (error instanceof z.ZodError) {
+      throw new ResumeAnalysisGenerationError("schema", "ZOD_VALIDATION_FAILED", {
+        issues: error.issues.slice(0, 8).map((issue) => ({ path: issue.path, code: issue.code, message: issue.message.slice(0, 160) }))
+      });
+    }
+    if (error instanceof StructuredResponseError) {
+      throw new ResumeAnalysisGenerationError("provider", error.code, {
+        provider: { status: error.status, requestId: error.requestId, cause: error.cause }
+      });
+    }
+    throw new ResumeAnalysisGenerationError("provider", "UNEXPECTED_ERROR");
+  }
 }
 
 export async function reviseResumeDraft(input: {

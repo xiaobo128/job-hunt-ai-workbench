@@ -1,8 +1,7 @@
 import path from "path";
-import { readFile } from "fs/promises";
 import type { UserAiSettings } from "@/lib/ai";
 import { normalizeResumeExtraction } from "@/lib/ai";
-import { saveUpload } from "@/lib/storage";
+import { readStoredFileBytes, saveUpload } from "@/lib/storage";
 
 type UploadKind = "job-leads" | "notifications" | "resumes" | "resume-variants";
 
@@ -48,9 +47,7 @@ export async function extractStoredUploadText(input: {
   }
 
   try {
-    const bytes = input.fileUrl.startsWith("/")
-      ? await readFile(path.join(process.cwd(), "public", input.fileUrl))
-      : Buffer.from(await (await fetch(input.fileUrl)).arrayBuffer());
+    const bytes = await readStoredUploadBytes(input.fileUrl);
 
     const text = await extractTextFromBytes({
       bytes,
@@ -69,6 +66,10 @@ export async function extractStoredUploadText(input: {
     });
     return "";
   }
+}
+
+export async function readStoredUploadBytes(fileUrl: string): Promise<Buffer> {
+  return readStoredFileBytes(fileUrl);
 }
 
 async function extractText(file: File, bytes: Buffer, settings?: UserAiSettings) {

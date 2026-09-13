@@ -1,8 +1,8 @@
 import { randomUUID } from "crypto";
 import { tmpdir } from "os";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
-import { put } from "@vercel/blob";
+import { get, put } from "@vercel/blob";
 
 export type StorageUploadInput = {
   bytes: Buffer;
@@ -17,6 +17,28 @@ export type StorageUploadResult = {
 };
 
 const STORAGE_PROVIDER = process.env.STORAGE_PROVIDER || "local";
+const PRIVATE_RESUME_FOLDERS = new Set(["resumes", "resume-variants"]);
+
+function getResumeBlobConfig() {
+  const token = process.env.RESUME_BLOB_READ_WRITE_TOKEN?.trim();
+  const storeId = process.env.RESUME_BLOB_STORE_ID?.trim();
+
+  if (!token || !storeId) {
+    throw new Error(
+      "RESUME_BLOB_READ_WRITE_TOKEN and RESUME_BLOB_STORE_ID are required for private resume storage"
+    );
+  }
+
+  return { token, storeId };
+}
+
+function isPrivateBlobUrl(fileUrl: string) {
+  try {
+    return new URL(fileUrl).hostname.endsWith(".private.blob.vercel-storage.com");
+  } catch {
+    return false;
+  }
+}
 
 export async function saveUpload({
   bytes,
@@ -46,15 +68,19 @@ export async function saveUpload({
   }
 
   if (STORAGE_PROVIDER === "vercel-blob") {
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    const isPrivateResumeUpload = PRIVATE_RESUME_FOLDERS.has(folder);
+    const resumeBlob = isPrivateResumeUpload ? getResumeBlobConfig() : null;
+    const token = resumeBlob?.token || process.env.BLOB_READ_WRITE_TOKEN;
+
+    if (!token) {
       throw new Error("BLOB_READ_WRITE_TOKEN is required when STORAGE_PROVIDER=vercel-blob");
     }
 
     const blob = await put(`uploads/${folder}/${fileName}`, bytes, {
-      access: "public",
+      access: isPrivateResumeUpload ? "private" : "public",
       addRandomSuffix: false,
       contentType: contentType || "application/octet-stream",
-      token: process.env.BLOB_READ_WRITE_TOKEN
+      token
     });
 
     return {
@@ -64,4 +90,35 @@ export async function saveUpload({
   }
 
   throw new Error(`Unsupported storage provider: ${STORAGE_PROVIDER}`);
+}
+
+export async function readStoredFileBytes(fileUrl: string): Promise<Buffer> {
+  if (!fileUrl) {
+    throw new Error("A stored file URL is required.");
+  }
+
+  if (fileUrl.startsWith("/")) {
+    return readFile(path.join(process.cwd(), "public", fileUrl));
+  }
+
+  if (isPrivateBlobUrl(fileUrl)) {
+    const { token } = getResumeBlobConfig();
+    const result = await get(fileUrl, {
+      access: "private",
+      token
+    });
+
+    if (!result || result.statusCode !== 200 || !result.stream) {
+      throw new Error("Could not read private resume blob.");
+    }
+
+    return Buffer.from(await new Response(result.stream).arrayBuffer());
+  }
+
+  const response = await fetch(fileUrl);
+  if (!response.ok) {
+    throw new Error(`Could not read stored file (${response.status}).`);
+  }
+
+  return Buffer.from(await response.arrayBuffer());
 }

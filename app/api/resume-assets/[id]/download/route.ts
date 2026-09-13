@@ -1,10 +1,9 @@
-import path from "path";
-import { readFile } from "fs/promises";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
+import { readStoredFileBytes } from "@/lib/storage";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   const user = await getSessionUser();
@@ -26,15 +25,16 @@ export async function GET(
   }
 
   try {
-    const bytes = asset.fileUrl.startsWith("/")
-      ? await readFile(path.join(process.cwd(), "public", asset.fileUrl))
-      : Buffer.from(await (await fetch(asset.fileUrl)).arrayBuffer());
+    const bytes = await readStoredFileBytes(asset.fileUrl);
 
-    return new Response(bytes, {
+    const disposition = new URL(request.url).searchParams.get("disposition") === "inline" ? "inline" : "attachment";
+    return new Response(Uint8Array.from(bytes), {
       status: 200,
       headers: {
         "Content-Type": asset.artifactMimeType || "application/octet-stream",
-        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(asset.artifactName || "resume-asset.bin")}`
+        "Content-Disposition": `${disposition}; filename*=UTF-8''${encodeURIComponent(asset.artifactName || "resume-asset.bin")}`,
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff"
       }
     });
   } catch {

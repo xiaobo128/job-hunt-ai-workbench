@@ -1,7 +1,6 @@
-import path from "path";
-import { readFile } from "fs/promises";
 import { prisma } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
+import { readStoredFileBytes } from "@/lib/storage";
 
 export async function GET(
   _request: Request,
@@ -26,17 +25,17 @@ export async function GET(
   }
 
   try {
-    const bytes = variant.fileUrl.startsWith("/")
-      ? await readFile(path.join(process.cwd(), "public", variant.fileUrl))
-      : Buffer.from(await (await fetch(variant.fileUrl)).arrayBuffer());
+    const bytes = await readStoredFileBytes(variant.fileUrl);
 
-    return new Response(bytes, {
+    return new Response(Uint8Array.from(bytes), {
       status: 200,
       headers: {
         "Content-Type": variant.artifactMimeType || "application/octet-stream",
         "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(
           variant.artifactName || `${variant.title}.bin`
-        )}`
+        )}`,
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff"
       }
     });
   } catch {

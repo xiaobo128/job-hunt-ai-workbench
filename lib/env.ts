@@ -9,6 +9,8 @@ export function getRuntimeConfig() {
   const usesLocalAppUrl = APP_URL.startsWith("http://localhost");
   const hasOpenAi = Boolean(process.env.OPENAI_API_KEY);
   const hasBlobToken = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+  const hasResumeBlobToken = Boolean(process.env.RESUME_BLOB_READ_WRITE_TOKEN);
+  const hasResumeBlobStoreId = Boolean(process.env.RESUME_BLOB_STORE_ID);
 
   return {
     appUrl: APP_URL || null,
@@ -19,7 +21,9 @@ export function getRuntimeConfig() {
     storage: {
       provider: STORAGE_PROVIDER,
       isProductionReady:
-        STORAGE_PROVIDER === "vercel-blob" ? hasBlobToken : STORAGE_PROVIDER !== "local"
+        STORAGE_PROVIDER === "vercel-blob"
+          ? hasBlobToken && hasResumeBlobToken && hasResumeBlobStoreId
+          : STORAGE_PROVIDER !== "local"
     },
     ai: {
       hasOpenAi,
@@ -32,7 +36,8 @@ export function getRuntimeConfig() {
       readyForProduction:
         usesPostgres &&
         usesHttpsAppUrl &&
-        ((STORAGE_PROVIDER === "vercel-blob" && hasBlobToken) || STORAGE_PROVIDER !== "local")
+        ((STORAGE_PROVIDER === "vercel-blob" && hasBlobToken && hasResumeBlobToken && hasResumeBlobStoreId) ||
+          STORAGE_PROVIDER !== "local")
     }
   };
 }

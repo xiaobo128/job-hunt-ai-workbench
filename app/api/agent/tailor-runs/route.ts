@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { parseAgentJson, requireAgentAuth, serverError } from "@/lib/agent-api";
 import { completeAgentRunLog, createAgentRunLog } from "@/lib/agent-auth";
 import { agentTailorRunCreateSchema } from "@/lib/agent-schemas";
+import { ResumeAnalysisEnvelopeSchema, validateResumeAnalysisEvidence } from "@/lib/resume-analysis";
+import { ConfirmedResumeDocumentError, loadConfirmedResumeDocument } from "@/lib/resume-parsing/confirmed";
 
 export async function POST(request: Request) {
   const auth = await requireAgentAuth();
@@ -35,6 +37,29 @@ export async function POST(request: Request) {
 
   if (!resume || !jobLead) {
     return NextResponse.json({ ok: false, error: "resource_not_found" }, { status: 404 });
+  }
+
+  // An agent result is an AI result too: it may only be written against the
+  // current confirmed document, and its references must be verifiable.
+  let confirmedDocument;
+  try {
+    confirmedDocument = await loadConfirmedResumeDocument({ userId: auth.user.id, resumeId });
+  } catch (error) {
+    if (error instanceof ConfirmedResumeDocumentError) {
+      return NextResponse.json({ ok: false, error: "confirmed_resume_required" }, { status: 422 });
+    }
+    return serverError("Failed to load confirmed resume document.");
+  }
+
+  if (body.suggestionsJson) {
+    const analysis = ResumeAnalysisEnvelopeSchema.safeParse(body.suggestionsJson);
+    if (
+      !analysis.success ||
+      analysis.data.sourceResumeParseId !== confirmedDocument.resumeParseId ||
+      !validateResumeAnalysisEvidence(analysis.data.dimensions, confirmedDocument.document)
+    ) {
+      return NextResponse.json({ ok: false, error: "invalid_resume_analysis" }, { status: 422 });
+    }
   }
 
   const suggestionsJson =

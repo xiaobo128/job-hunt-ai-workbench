@@ -21,3 +21,4 @@ dev.db-journal
 .vercel
 
 public/uploads/
+/test-fixtures/

@@ -11,20 +11,20 @@ type Props = {
   jobs: Option[];
   resumes: Option[];
   createTailorAdvice: (formData: FormData) => Promise<void>;
-  createTailorDraft: (formData: FormData) => Promise<void>;
   triggerExternalTailor: (formData: FormData) => Promise<void>;
   initialJobLeadId?: string;
   initialResumeId?: string;
+  error?: string;
 };
 
 export function TailorStartForm({
   jobs,
   resumes,
   createTailorAdvice,
-  createTailorDraft,
   triggerExternalTailor,
   initialJobLeadId,
-  initialResumeId
+  initialResumeId,
+  error
 }: Props) {
   const isUnavailable = jobs.length === 0 || resumes.length === 0;
   const selectedJobLeadId = jobs.some((job) => job.id === initialJobLeadId) ? initialJobLeadId : jobs[0]?.id;
@@ -77,11 +77,20 @@ export function TailorStartForm({
 
       {isUnavailable ? (
         <div className="rounded-2xl bg-panel px-4 py-3 text-sm text-slate-600">
-          需要先准备至少 1 个岗位和 1 份简历，才能发起微调。
+          {jobs.length === 0
+            ? "需要先准备至少 1 个岗位，才能发起微调。"
+            : "没有已完成结构化确认的简历。请先到简历仓库完成确认。"}
         </div>
       ) : null}
 
-      <div className="grid gap-2 md:grid-cols-3">
+      {error === "confirmed_resume_required" ? (
+        <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">请先完成所选简历的结构化确认，再发起 AI 请求。</div>
+      ) : null}
+      {error === "resume_analysis_failed" ? (
+        <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">简历分析暂时无法生成，请稍后重试。</div>
+      ) : null}
+
+      <div className="grid gap-2 md:grid-cols-2">
         <TailorPendingButton
           formAction={createTailorAdvice}
           idleText="生成匹配分析"
@@ -93,12 +102,6 @@ export function TailorStartForm({
           idleText="交给外部 Agent"
           pendingText="正在发送给外部 Agent..."
           className="w-full border border-accent bg-white text-accent"
-        />
-        <TailorPendingButton
-          formAction={createTailorDraft}
-          idleText="生成完整草稿"
-          pendingText="正在生成完整草稿..."
-          className="w-full bg-accent text-white"
         />
       </div>
 

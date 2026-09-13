@@ -6,6 +6,7 @@ import { PageShell } from "@/components/app-shell";
 import { Panel } from "@/components/cards";
 import { JobDetailReturnButton } from "@/components/job-detail-return-button";
 import { JobDetailSubmitButton } from "@/components/job-detail-submit-button";
+import { JobStageProgress } from "@/components/job-stage-progress";
 import { getStageDisplayLabel, normalizeApplicationStage, stageOptions } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { formatDate, listToMultiline } from "@/lib/format";
@@ -156,10 +157,18 @@ export default async function JobDetailPage({
           </form>
         </Panel>
 
-        <Panel title="关联定制简历" subtitle="这里显示简历仓库里已经关联到这个岗位的 AI 草稿或手动上传版本。">
+        <Panel title="求职进度" subtitle="点击节点更新当前主流程阶段；详细推进信息仍在下方的推进备注中维护。">
+          <JobStageProgress
+            applicationId={job.application.id}
+            currentStage={job.application.currentStage}
+            hasRejectionEvent={job.application.events.some((event) => event.eventType === "REJECTION")}
+          />
+        </Panel>
+
+        <Panel title="关联定制简历" subtitle="这里显示简历仓库里已经关联到这个岗位的历史 AI 版本或手动上传版本。">
           {job.resumeVariants.length === 0 ? (
             <div className="rounded-2xl bg-panel px-4 py-3 text-sm text-slate-500">
-              还没有关联到这个岗位的定制简历。你可以先去简历微调生成完整草稿，或者在简历仓库里上传手动修改版。
+              还没有关联到这个岗位的定制简历。你可以在简历仓库上传外部修改后的版本并关联此岗位。
             </div>
           ) : (
             <div className="space-y-3">

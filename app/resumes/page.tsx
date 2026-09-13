@@ -1,13 +1,13 @@
 import { syncResumeEditingSourceText } from "@/app/actions";
 import { PageShell } from "@/components/app-shell";
 import { Badge } from "@/components/cards";
-import { AddResumeAssetsDialog } from "@/components/add-resume-assets-dialog";
 import { AddResumeDialog } from "@/components/add-resume-dialog";
 import { AddResumeVariantDialog } from "@/components/add-resume-variant-dialog";
 import { DeleteResumeAssetForm } from "@/components/delete-resume-asset-form";
 import { DeleteResumeForm } from "@/components/delete-resume-form";
 import { DeleteResumeVariantForm } from "@/components/delete-resume-variant-form";
 import { RetryResumeAssetExtractionForm } from "@/components/retry-resume-asset-extraction-form";
+import { RetryResumeParseForm } from "@/components/retry-resume-parse-form";
 import { ResumeNoteInline } from "@/components/resume-note-inline";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
@@ -102,6 +102,8 @@ export default async function ResumesPage({
           const linkedJobCount = new Set(
             visibleVariants.map((variant) => variant.jobLeadId).filter((jobLeadId): jobLeadId is string => Boolean(jobLeadId))
           ).size;
+          const latestParse = resume.parseAttempts[0] || null;
+          const currentConfirmedParse = resume.currentConfirmedParse;
 
           return (
             <details
@@ -120,13 +122,39 @@ export default async function ResumesPage({
                       <Badge>{visibleVariants.length} 个定制版本</Badge>
                       <Badge>{linkedJobCount} 个关联岗位</Badge>
                       <Badge>{resume.assets.length} 个源文件</Badge>
+                      {latestParse ? <Badge>{getResumeParseStatusLabel(latestParse.status)}</Badge> : null}
                     </div>
                     <div className="mt-3.5">
                       <ResumeNoteInline resumeId={resume.id} initialNote={resume.note} />
                     </div>
+                    {latestParse ? (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                        <span>结构化解析：{getResumeParseStatusLabel(latestParse.status)}</span>
+                        {latestParse.status === "NEEDS_REVIEW" ? (
+                          <a
+                            href={`/resumes/${resume.id}/parses/${latestParse.id}/review`}
+                            className="font-medium text-accent underline-offset-4 hover:underline"
+                          >
+                            去确认结构化字段
+                          </a>
+                        ) : null}
+                        {latestParse.status === "FAILED" && latestParse.errorMessage ? <span>{latestParse.errorMessage}</span> : null}
+                        {latestParse.status === "FAILED" ? <RetryResumeParseForm failedParseId={latestParse.id} /> : null}
+                      </div>
+                    ) : null}
+                    {currentConfirmedParse ? (
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+                        <span>当前有效结构化版本：已确认</span>
+                        <a
+                          href={`/resumes/${resume.id}/parses/${currentConfirmedParse.id}/review`}
+                          className="font-medium text-accent underline-offset-4 hover:underline"
+                        >
+                          查看已确认字段
+                        </a>
+                      </div>
+                    ) : null}
                   </div>
                   <div className="flex flex-wrap items-start gap-2">
-                    <AddResumeAssetsDialog resumeId={resume.id} />
                     {resume.assets.length > 0 ? (
                       <form action={syncResumeEditingSourceText}>
                         <input type="hidden" name="resumeId" value={resume.id} />
@@ -150,7 +178,7 @@ export default async function ResumesPage({
                     <div>
                       <div className="text-sm font-medium text-ink">源文件资产</div>
                       <div className="mt-1 text-xs text-slate-500">
-                        原始简历可以同时挂 PDF、DOCX、图片或文本文件，系统会自动标记更适合预览和编辑的来源。
+                        这里保留该简历已有的 PDF、DOCX、图片或文本源文件。
                       </div>
                     </div>
                     <Badge>{resume.assets.length} 个源文件</Badge>
@@ -158,7 +186,7 @@ export default async function ResumesPage({
 
                   {resume.assets.length === 0 ? (
                     <div className="rounded-2xl bg-panel px-4 py-3 text-sm text-slate-500">
-                      这份原始简历还没有独立源文件。补传 PDF 或 DOCX 后，预览和后续微调会更稳定。
+                      这份原始简历当前没有可用的源文件。
                     </div>
                   ) : (
                     <div className="space-y-3">
@@ -185,7 +213,9 @@ export default async function ResumesPage({
                               >
                                 下载源文件
                               </a>
-                              {!asset.extractedText ? <RetryResumeAssetExtractionForm assetId={asset.id} /> : null}
+                              {!asset.extractedText && asset.kind !== "PDF" && asset.kind !== "DOCX" ? (
+                                <RetryResumeAssetExtractionForm assetId={asset.id} />
+                              ) : null}
                               <DeleteResumeAssetForm assetId={asset.id} />
                             </div>
                           </div>
@@ -274,6 +304,23 @@ function getVariantSourceLabel(sourceType: string) {
   }
 
   return "手动修改上传";
+}
+
+function getResumeParseStatusLabel(status: string) {
+  switch (status) {
+    case "PROCESSING":
+      return "解析中";
+    case "NEEDS_REVIEW":
+      return "待结构化确认";
+    case "FAILED":
+      return "解析失败";
+    case "CONFIRMED":
+      return "已确认";
+    case "SUPERSEDED":
+      return "已替代";
+    default:
+      return status;
+  }
 }
 
 function getVariantTypeFilter(value: string | undefined) {

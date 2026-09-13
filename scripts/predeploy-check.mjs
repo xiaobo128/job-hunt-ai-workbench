@@ -62,6 +62,19 @@ if (storageProvider === "local") {
   } else {
     fail("BLOB_READ_WRITE_TOKEN is missing");
   }
+  if (
+    env.RESUME_BLOB_READ_WRITE_TOKEN &&
+    !isPlaceholderValue("RESUME_BLOB_READ_WRITE_TOKEN", env.RESUME_BLOB_READ_WRITE_TOKEN)
+  ) {
+    ok("RESUME_BLOB_READ_WRITE_TOKEN is configured");
+  } else {
+    fail("RESUME_BLOB_READ_WRITE_TOKEN is missing");
+  }
+  if (env.RESUME_BLOB_STORE_ID && !isPlaceholderValue("RESUME_BLOB_STORE_ID", env.RESUME_BLOB_STORE_ID)) {
+    ok("RESUME_BLOB_STORE_ID is configured");
+  } else {
+    fail("RESUME_BLOB_STORE_ID is missing");
+  }
 } else if (storageProvider) {
   warn(`STORAGE_PROVIDER is set to ${storageProvider}; verify that lib/storage.ts supports it`);
 }

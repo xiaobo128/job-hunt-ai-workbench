@@ -6,8 +6,17 @@ import { formatDate } from "@/lib/format";
 import { getStageLabel } from "@/lib/constants";
 
 export default async function DashboardPage() {
-  const { jobsCount, resumesCount, applicationsCount, recentJobs, recentEvents, needsReviewJobs, fallbackItems } =
-    await getDashboardData();
+  const {
+    jobsCount,
+    resumesCount,
+    applicationsCount,
+    recentJobs,
+    recentEvents,
+    needsReviewJobs,
+    fallbackItems,
+    upcomingDeadlineJobs,
+    todayActionItems
+  } = await getDashboardData();
 
   return (
     <PageShell
@@ -25,6 +34,57 @@ export default async function DashboardPage() {
         <StatCard label="原始简历" value={String(resumesCount)} hint="简历仓库统一管理基础版本" />
         <StatCard label="最近事件" value={String(recentEvents.length)} hint="通知解析和手动补录都会沉淀在这里" />
       </div>
+
+      <Panel title="今天需要处理" subtitle="根据现有岗位、申请和通知记录整理的优先行动。">
+        <div className="space-y-3">
+          {todayActionItems.length === 0 ? (
+            <div className="rounded-2xl bg-panel p-4 text-sm text-slate-500">今天暂无需要优先处理的事项。</div>
+          ) : (
+            todayActionItems.map((item) => (
+              <Link
+                key={item.id}
+                href={item.href}
+                className="flex items-start justify-between gap-4 rounded-2xl border border-line p-4 transition hover:border-accent"
+              >
+                <div className="min-w-0">
+                  <div className="truncate font-medium text-ink">
+                    {item.companyName} | {item.roleTitle}
+                  </div>
+                  <div className="mt-1 text-sm text-slate-600">{item.reason}</div>
+                  <div className="mt-1 text-xs text-slate-400">
+                    {item.timeLabel}：{formatDate(item.timeAt)}
+                  </div>
+                </div>
+                <Badge>待查看</Badge>
+              </Link>
+            ))
+          )}
+        </div>
+      </Panel>
+
+      <Panel title="即将截止" subtitle="未来 5 天内需要关注的岗位截止时间。">
+        <div className="space-y-3">
+          {upcomingDeadlineJobs.length === 0 ? (
+            <div className="rounded-2xl bg-panel p-4 text-sm text-slate-500">未来 5 天内暂无即将截止的岗位。</div>
+          ) : (
+            upcomingDeadlineJobs.map((job) => (
+              <Link
+                key={job.id}
+                href={`/jobs/${job.id}`}
+                className="flex items-start justify-between gap-4 rounded-2xl border border-line p-4 transition hover:border-accent"
+              >
+                <div className="min-w-0">
+                  <div className="truncate font-medium text-ink">
+                    {job.companyName} | {job.roleTitle}
+                  </div>
+                  <div className="mt-1 text-sm text-slate-500">截止日期：{formatDate(job.deadlineAt)}</div>
+                </div>
+                <Badge>剩余 {getRemainingDays(job.deadlineAt)} 天</Badge>
+              </Link>
+            ))
+          )}
+        </div>
+      </Panel>
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Panel title="待确认岗位" subtitle="新导入的岗位建议先核对一次，再进入正式推进。">
@@ -115,4 +175,9 @@ export default async function DashboardPage() {
       </div>
     </PageShell>
   );
+}
+
+function getRemainingDays(deadlineAt: Date) {
+  const millisecondsPerDay = 24 * 60 * 60 * 1000;
+  return Math.max(1, Math.ceil((deadlineAt.getTime() - Date.now()) / millisecondsPerDay));
 }

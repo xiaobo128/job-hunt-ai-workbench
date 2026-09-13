@@ -6,6 +6,7 @@ import {
   AgentRunKind,
   ApplicationStage,
   EventType,
+  Prisma,
   ResumeAssetKind,
   ResumeVariantSourceType,
   SourceType
@@ -13,9 +14,11 @@ import {
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import {
+  createResumeAnalysis,
   extractJobTextFromImage,
   extractResumeTextFromImage,
   parseNotification,
+  ResumeAnalysisGenerationError,
   reviseResumeDraft,
   tailorResume
 } from "@/lib/ai";
@@ -31,6 +34,11 @@ import {
 } from "@/lib/resume-assets";
 import { INITIAL_RESUME_LINK_VARIANT_NOTE } from "@/lib/resume-linking";
 import { extractStoredUploadText, isExtractionPlaceholder, persistUpload } from "@/lib/uploads";
+import { orchestrateResumeParse } from "@/lib/resume-parsing/orchestrator";
+import { ResumeDocumentSchema } from "@/lib/resume-parsing/core";
+import { confirmResumeParse, ResumeParseConfirmationError } from "@/lib/resume-parsing/confirmation";
+import { loadConfirmedResumeDocument } from "@/lib/resume-parsing/confirmed";
+import { formatResumeDocument } from "@/lib/resume-analysis";
 import { requireSessionUser } from "@/lib/session";
 import { redirect } from "next/navigation";
 import { saveUpload } from "@/lib/storage";
@@ -104,6 +112,21 @@ async function getPersistedUserAiSettings(userId: string) {
   });
 
   return getUserAiSettings(freshUser || {});
+}
+
+async function requireConfirmedResumeForTailor(userId: string, resumeId: string) {
+  try {
+    return await loadConfirmedResumeDocument({ userId, resumeId });
+  } catch {
+    redirect("/tailor?tailorError=confirmed_resume_required");
+  }
+}
+
+function getSafeErrorCode(error: unknown) {
+  if (typeof error === "object" && error !== null && "code" in error && typeof error.code === "string") {
+    return error.code;
+  }
+  return "UNEXPECTED_PERSISTENCE_ERROR";
 }
 
 export async function createJobLead(formData: FormData) {
@@ -319,7 +342,14 @@ export async function createResume(formData: FormData) {
   if (files.length === 0 && fallbackFile instanceof File && fallbackFile.size > 0) {
     files.push(fallbackFile);
   }
-  const uploadedFiles = await Promise.all(files.map((file) => persistUpload(file, "resumes", { settings: aiSettings })));
+  const uploadedFiles = await Promise.all(
+    files.map((file) =>
+      persistUpload(file, "resumes", {
+        settings: aiSettings,
+        extractText: shouldUseTextInResumeParsing(file.name, file.type) ? false : undefined
+      })
+    )
+  );
   const uploadedAssets = uploadedFiles.filter((item): item is NonNullable<typeof item> => Boolean(item));
   const title =
     ((formData.get("title") as string | null) ?? "").trim() ||
@@ -381,7 +411,16 @@ export async function createResume(formData: FormData) {
     }
   });
 
-  await syncResumeAssetMetadata(created.id, aiSettings);
+  await syncResumeAssetMetadata(created.id, aiSettings, { refreshText: false });
+
+  const parseAsset = chooseAutomaticParseAsset(created.assets);
+  if (parseAsset) {
+    await orchestrateResumeParse({
+      userId: user.id,
+      resumeId: created.id,
+      resumeAssetId: parseAsset.id
+    });
+  }
 
   revalidatePath("/resumes");
   revalidatePath("/tailor");
@@ -409,7 +448,14 @@ export async function createResumeAssets(formData: FormData) {
     return;
   }
 
-  const uploadedFiles = await Promise.all(files.map((file) => persistUpload(file, "resumes", { settings: aiSettings })));
+  const uploadedFiles = await Promise.all(
+    files.map((file) =>
+      persistUpload(file, "resumes", {
+        settings: aiSettings,
+        extractText: shouldUseTextInResumeParsing(file.name, file.type) ? false : undefined
+      })
+    )
+  );
   const uploadedAssets = uploadedFiles.filter((item): item is NonNullable<typeof item> => Boolean(item));
 
   if (uploadedAssets.length === 0) {
@@ -427,7 +473,23 @@ export async function createResumeAssets(formData: FormData) {
     }))
   });
 
-  await syncResumeAssetMetadata(resume.id, aiSettings);
+  const createdAssets = await prisma.resumeAsset.findMany({
+    where: {
+      resumeId: resume.id,
+      fileUrl: { in: uploadedAssets.map((asset) => asset.fileUrl) }
+    }
+  });
+
+  await syncResumeAssetMetadata(resume.id, aiSettings, { refreshText: false });
+
+  const parseAsset = chooseAutomaticParseAsset(createdAssets);
+  if (parseAsset) {
+    await orchestrateResumeParse({
+      userId: user.id,
+      resumeId: resume.id,
+      resumeAssetId: parseAsset.id
+    });
+  }
 
   revalidatePath("/resumes");
   revalidatePath("/tailor");
@@ -732,6 +794,135 @@ export async function retryResumeAssetExtraction(formData: FormData) {
   revalidatePath("/tailor");
 }
 
+export async function retryResumeParse(formData: FormData) {
+  const user = await requireSessionUser();
+  const failedParseId = formData.get("failedParseId") as string;
+
+  if (!failedParseId) {
+    return;
+  }
+
+  const failedParse = await prisma.resumeParse.findFirst({
+    where: {
+      id: failedParseId,
+      status: "FAILED",
+      resume: { ownerId: user.id }
+    },
+    select: {
+      resumeId: true,
+      resumeAssetId: true,
+      resumeAsset: { select: { id: true, resumeId: true } }
+    }
+  });
+
+  if (!failedParse?.resumeAsset || failedParse.resumeAsset.resumeId !== failedParse.resumeId) {
+    return;
+  }
+
+  await orchestrateResumeParse({
+    userId: user.id,
+    resumeId: failedParse.resumeId,
+    resumeAssetId: failedParse.resumeAssetId
+  });
+
+  revalidatePath("/resumes");
+}
+
+export type ResumeParseReviewSaveState = {
+  error?: string;
+  saved?: boolean;
+};
+
+export async function saveResumeParseReview(
+  _previousState: ResumeParseReviewSaveState,
+  formData: FormData
+): Promise<ResumeParseReviewSaveState> {
+  const user = await requireSessionUser();
+  const resumeId = formData.get("resumeId");
+  const parseId = formData.get("parseId");
+  const documentJson = formData.get("documentJson");
+
+  if (typeof resumeId !== "string" || typeof parseId !== "string" || typeof documentJson !== "string") {
+    return { error: "缺少待保存的结构化简历数据。" };
+  }
+
+  let document: unknown;
+  try {
+    document = JSON.parse(documentJson);
+  } catch {
+    return { error: "结构化简历数据格式无效，请刷新页面后重试。" };
+  }
+
+  const validatedDocument = ResumeDocumentSchema.safeParse(document);
+  if (!validatedDocument.success) {
+    return { error: "结构化字段未通过校验，请补全必填标题和条目内容。" };
+  }
+
+  const parse = await prisma.resumeParse.findFirst({
+    where: {
+      id: parseId,
+      resumeId,
+      status: "NEEDS_REVIEW",
+      resume: { ownerId: user.id }
+    },
+    select: {
+      id: true,
+      resumeId: true,
+      resumeAssetId: true,
+      resumeAsset: { select: { resumeId: true } }
+    }
+  });
+
+  // Require every hop in Parse -> ResumeAsset -> Resume -> current user to match.
+  if (!parse || parse.resumeId !== resumeId || parse.resumeAsset.resumeId !== resumeId) {
+    return { error: "未找到可编辑的结构化解析记录。" };
+  }
+
+  await prisma.resumeParse.update({
+    where: { id: parse.id },
+    data: {
+      documentJson: validatedDocument.data as Prisma.InputJsonValue,
+      // Saving a review draft must never turn it into a confirmed parse.
+      status: "NEEDS_REVIEW"
+    }
+  });
+
+  revalidatePath("/resumes");
+  revalidatePath(`/resumes/${resumeId}/parses/${parseId}/review`);
+  return { saved: true };
+}
+
+export type ResumeParseConfirmState = {
+  error?: string;
+  confirmed?: boolean;
+};
+
+export async function confirmResumeParseReview(
+  _previousState: ResumeParseConfirmState,
+  formData: FormData
+): Promise<ResumeParseConfirmState> {
+  const user = await requireSessionUser();
+  const parseId = formData.get("parseId");
+
+  if (typeof parseId !== "string" || !parseId) {
+    return { error: "缺少待确认的结构化解析记录。" };
+  }
+
+  try {
+    const confirmed = await confirmResumeParse({ userId: user.id, parseId });
+    revalidatePath("/resumes");
+    revalidatePath(`/resumes/${confirmed.resumeId}/parses/${confirmed.parseId}/review`);
+    return { confirmed: true };
+  } catch (error) {
+    if (error instanceof ResumeParseConfirmationError) {
+      return { error: error.message };
+    }
+
+    console.error("Failed to confirm ResumeParse", error);
+    return { error: "确认失败，请稍后重试。" };
+  }
+}
+
 export async function syncResumeEditingSourceText(formData: FormData) {
   const user = await requireSessionUser();
   const aiSettings = await getPersistedUserAiSettings(user.id);
@@ -886,7 +1077,10 @@ export async function createManualResumeVariant(formData: FormData) {
   }
 
   const [resume, jobLead] = await Promise.all([
-    prisma.resume.findFirst({ where: { id: resumeId, ownerId: user.id } }),
+    prisma.resume.findFirst({
+      where: { id: resumeId, ownerId: user.id },
+      select: { id: true, title: true, artifactName: true }
+    }),
     jobLeadId ? prisma.jobLead.findFirst({ where: { id: jobLeadId, ownerId: user.id } }) : null
   ]);
 
@@ -939,22 +1133,9 @@ export async function triggerExternalTailor(formData: FormData) {
   const jobLeadId = formData.get("jobLeadId") as string;
   const customInstructions = ((formData.get("customInstructions") as string | null) ?? "").trim();
 
-  const [resume, jobLead, freshUser] = await Promise.all([
-    prisma.resume.findFirst({
-      where: { id: resumeId, ownerId: user.id },
-      include: {
-        assets: {
-          select: {
-            kind: true,
-            artifactName: true,
-            fileUrl: true,
-            isPreviewSource: true,
-            isEditingSource: true,
-            extractedText: true
-          }
-        }
-      }
-    }),
+  const [confirmedDocument, resume, jobLead, freshUser] = await Promise.all([
+    requireConfirmedResumeForTailor(user.id, resumeId),
+    prisma.resume.findFirst({ where: { id: resumeId, ownerId: user.id }, select: { id: true, title: true } }),
     prisma.jobLead.findFirst({
       where: { id: jobLeadId, ownerId: user.id }
     }),
@@ -985,6 +1166,7 @@ export async function triggerExternalTailor(formData: FormData) {
         id: jobLead.id,
         companyName: jobLead.companyName,
         roleTitle: jobLead.roleTitle,
+        rawContent: jobLead.rawContent,
         city: jobLead.city,
         sourceName: jobLead.sourceName,
         sourceUrl: jobLead.sourceUrl,
@@ -994,11 +1176,10 @@ export async function triggerExternalTailor(formData: FormData) {
         skills: safeJsonArray(jobLead.skills)
       },
       resume: {
-        id: resume.id,
-        title: resume.title,
-        rawText: resume.rawText,
-        note: resume.note,
-        assets: resume.assets
+        resumeId: resume.id,
+        resumeParseId: confirmedDocument.resumeParseId,
+        schemaVersion: confirmedDocument.document.schemaVersion,
+        document: confirmedDocument.document
       },
       customInstructions
     },
@@ -1393,8 +1574,9 @@ async function createTailorRunInternal(formData: FormData, mode: "advice" | "dra
   const jobLeadId = formData.get("jobLeadId") as string;
   const customInstructions = ((formData.get("customInstructions") as string | null) ?? "").trim();
 
-  const [resume, jobLead] = await Promise.all([
-    prisma.resume.findFirst({ where: { id: resumeId, ownerId: user.id }, include: { assets: true } }),
+  const [confirmedDocument, resume, jobLead] = await Promise.all([
+    requireConfirmedResumeForTailor(user.id, resumeId),
+    prisma.resume.findFirst({ where: { id: resumeId, ownerId: user.id } }),
     prisma.jobLead.findFirst({ where: { id: jobLeadId, ownerId: user.id } })
   ]);
 
@@ -1402,134 +1584,103 @@ async function createTailorRunInternal(formData: FormData, mode: "advice" | "dra
     return;
   }
 
-  let result:
-    | {
-        provider: string | null;
-        note: string;
-        data: Record<string, unknown> & {
-          summary: string;
-          draftTitle?: string;
-          draftText?: string;
-        };
-      };
-
-  const { editingSource } = chooseResumeAssetSources(resume.assets);
-  const editingSourceHasText = Boolean(editingSource?.extractedText?.trim() && !isExtractionPlaceholder(editingSource.extractedText));
-  let storedText = "";
-
-  if (editingSource) {
-    const shouldRefreshEditingSource = shouldRefreshResumeAssetText(editingSource.kind);
-
-    if (shouldRefreshEditingSource || !editingSourceHasText) {
-      const refreshedText = (
-        await extractStoredUploadText({
-          fileUrl: editingSource.fileUrl,
-          originalName: editingSource.artifactName || resume.title,
-          mimeType: editingSource.artifactMimeType,
-          settings: aiSettings
-        })
-      ).trim();
-
-      storedText = refreshedText || (editingSourceHasText ? editingSource.extractedText!.trim() : "");
-
-      if (storedText !== (editingSource.extractedText || "").trim()) {
-        await prisma.resumeAsset.update({
-          where: { id: editingSource.id },
-          data: {
-            extractedText: storedText || null
-          }
-        });
+  if (mode === "advice") {
+    let analysis;
+    try {
+      analysis = await createResumeAnalysis({
+        document: confirmedDocument.document,
+        companyName: jobLead.companyName,
+        roleTitle: jobLead.roleTitle,
+        rawContent: jobLead.rawContent,
+        parsedSummary: jobLead.parsedSummary,
+        responsibilities: safeJsonArray(jobLead.responsibilities),
+        requirements: safeJsonArray(jobLead.requirements),
+        skills: safeJsonArray(jobLead.skills),
+        customInstructions,
+        settings: aiSettings
+      });
+    } catch (error) {
+      if (error instanceof ResumeAnalysisGenerationError) {
+        console.error(
+          JSON.stringify({
+            event: "tailor.resume_analysis_failed",
+            failureStage: error.stage,
+            errorType: error.name,
+            errorCode: error.code,
+            zodIssues: error.diagnostics?.issues,
+            evidenceFailure: error.diagnostics?.evidence,
+            provider: error.diagnostics?.provider,
+            resumeId,
+            parseId: confirmedDocument.resumeParseId,
+            tailorTargetId: jobLeadId
+          })
+        );
+      } else {
+        console.error(
+          JSON.stringify({
+            event: "tailor.resume_analysis_failed",
+            failureStage: "action",
+            errorType: error instanceof Error ? error.name : "UnknownError",
+            errorCode: "UNEXPECTED_ACTION_ERROR",
+            resumeId,
+            parseId: confirmedDocument.resumeParseId,
+            tailorTargetId: jobLeadId
+          })
+        );
       }
-    } else {
-      storedText = editingSource.extractedText!.trim();
+      redirect("/tailor?tailorError=resume_analysis_failed");
     }
-  } else {
-    storedText = resolveResumeText({
-      rawText: isExtractionPlaceholder(resume.rawText) ? "" : resume.rawText,
-      assets: resume.assets
-    }).text;
-  }
-
-  if (!storedText) {
-    storedText = (
-      await extractStoredUploadText({
-        fileUrl: resume.fileUrl,
-        originalName: resume.artifactName || resume.title,
-        mimeType: resume.artifactMimeType,
-        settings: aiSettings
-      })
-    ).trim();
-  }
-
-  let extractionNote = "";
-
-  if (!storedText && (editingSource?.fileUrl || resume.fileUrl)?.startsWith("/")) {
-    const mimeType = editingSource?.artifactMimeType || resume.artifactMimeType || "";
-
-    if (mimeType.startsWith("image/")) {
-      const imageExtraction = await extractResumeTextFromImage({
-        imagePath: `${process.cwd()}/public${editingSource?.fileUrl || resume.fileUrl}`,
-        imageMimeType: mimeType,
-        fileName: editingSource?.artifactName || resume.artifactName || resume.title,
-        settings: aiSettings
-      });
-
-      storedText = imageExtraction.data.extractedText.trim();
-      extractionNote = imageExtraction.note;
-    }
-  }
-
-  const resumeContext = [storedText, resume.note ? `版本备注：${resume.note}` : ""]
-    .filter(Boolean)
-    .join("\n\n");
-
-  if (!resumeContext) {
-    result = {
-      provider: "local",
-      note:
-        extractionNote ||
-        "当前简历只保存了原文件，尚未提取到可用正文；请补充版本备注，或换成可复制文字的 PDF / Word / 文本文件后再生成建议。",
-      data:
-        mode === "draft"
-          ? {
-              summary: "这次没有生成内容，因为系统还拿不到足够的简历正文。",
-              draftTitle: `${resume.title} - 待补充正文`,
-              draftText: ""
-            }
-          : {
-              summary: "这次没有生成内容，因为系统还拿不到足够的简历正文。"
-            }
-    };
-  } else {
-    if (storedText && storedText !== resume.rawText) {
-      await prisma.resume.update({
-        where: { id: resume.id },
-        data: { rawText: storedText }
-      });
-    }
-
-    const tailorResult = await tailorResume({
-      mode,
-      jobTitle: jobLead.roleTitle,
-      companyName: jobLead.companyName,
-      resumeText: resumeContext,
-      jobSummary: jobLead.parsedSummary ?? "",
-      skills: safeJsonArray(jobLead.skills),
-      requirements: safeJsonArray(jobLead.requirements),
-      customInstructions,
-      settings: aiSettings
-    });
-
-    result = extractionNote
-      ? {
-          ...tailorResult,
-          note: `${extractionNote} ${tailorResult.note}`.trim()
+    let createdRun;
+    try {
+      createdRun = await prisma.resumeTailorRun.create({
+        data: {
+          resumeId,
+          jobLeadId,
+          aiProvider: analysis.provider,
+          aiNote: analysis.note,
+          summary: "已生成固定七维简历分析。",
+          suggestionsJson: JSON.stringify({
+            kind: "resume_analysis",
+            analysisSchemaVersion: 1,
+            sourceResumeParseId: confirmedDocument.resumeParseId,
+            dimensions: analysis.data
+          })
         }
-      : tailorResult;
+      });
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          event: "tailor.resume_analysis_failed",
+          failureStage: "persistence",
+          errorType: error instanceof Error ? error.name : "UnknownError",
+          errorCode: getSafeErrorCode(error),
+          resumeId,
+          parseId: confirmedDocument.resumeParseId,
+          tailorTargetId: jobLeadId
+        })
+      );
+      redirect("/tailor?tailorError=resume_analysis_failed");
+    }
+    revalidatePath("/tailor");
+    revalidatePath(`/jobs/${jobLeadId}`);
+    redirect(`/tailor?run=${createdRun.id}&ts=${Date.now()}&mode=${mode}`);
   }
 
-  const draftTitle = "draftTitle" in result.data ? result.data.draftTitle || "" : "";
-  const draftText = "draftText" in result.data ? result.data.draftText || "" : "";
+  const result = await tailorResume({
+    mode: "draft",
+    jobTitle: jobLead.roleTitle,
+    companyName: jobLead.companyName,
+    resumeText: formatResumeDocument(confirmedDocument.document),
+    jobSummary: jobLead.parsedSummary ?? "",
+    skills: safeJsonArray(jobLead.skills),
+    requirements: safeJsonArray(jobLead.requirements),
+    customInstructions,
+    settings: aiSettings
+  });
+
+  const draftData = result.data as { summary: string; draftTitle?: string; draftText?: string };
+  const draftTitle = draftData.draftTitle || "";
+  const draftText = draftData.draftText || "";
 
   const createdRun = await prisma.resumeTailorRun.create({
     data: {
@@ -1542,14 +1693,14 @@ async function createTailorRunInternal(formData: FormData, mode: "advice" | "dra
         ? normalizeDraftTitle(
             draftTitle,
             buildVariantBaseName(
-              getResumeSourceName(editingSource?.artifactName || resume.artifactName, resume.title),
+              getResumeSourceName(resume.artifactName, resume.title),
               jobLead.companyName,
               jobLead.roleTitle
             )
           )
         : null,
       draftText: draftText ? normalizeDraftBody(draftText) : null,
-      suggestionsJson: JSON.stringify(result.data)
+      suggestionsJson: JSON.stringify({ ...result.data, sourceResumeParseId: confirmedDocument.resumeParseId })
     }
   });
 
@@ -1559,7 +1710,12 @@ async function createTailorRunInternal(formData: FormData, mode: "advice" | "dra
   redirect(`/tailor?run=${createdRun.id}&ts=${Date.now()}&mode=${mode}`);
 }
 
-async function syncResumeAssetMetadata(resumeId: string, aiSettings?: Awaited<ReturnType<typeof getPersistedUserAiSettings>>) {
+async function syncResumeAssetMetadata(
+  resumeId: string,
+  aiSettings?: Awaited<ReturnType<typeof getPersistedUserAiSettings>>,
+  options: { refreshText?: boolean } = {}
+) {
+  const refreshText = options.refreshText ?? true;
   const resume = await prisma.resume.findUnique({
     where: { id: resumeId },
     include: { assets: true }
@@ -1571,9 +1727,9 @@ async function syncResumeAssetMetadata(resumeId: string, aiSettings?: Awaited<Re
 
   const assetsWithText = await Promise.all(
     resume.assets.map(async (asset) => {
-      const shouldRefreshAsset = shouldRefreshResumeAssetText(asset.kind);
+      const shouldRefreshAsset = refreshText && shouldRefreshResumeAssetText(asset.kind);
 
-      if (!shouldRefreshAsset && asset.extractedText?.trim() && !isExtractionPlaceholder(asset.extractedText)) {
+      if (!shouldRefreshAsset && (!refreshText || (asset.extractedText?.trim() && !isExtractionPlaceholder(asset.extractedText)))) {
         return asset;
       }
 
@@ -1628,13 +1784,22 @@ async function syncResumeAssetMetadata(resumeId: string, aiSettings?: Awaited<Re
       fileUrl: nextPrimaryAsset?.fileUrl || resume.fileUrl,
       artifactName: nextPrimaryAsset?.artifactName || resume.artifactName,
       artifactMimeType: nextPrimaryAsset?.artifactMimeType || resume.artifactMimeType,
-      rawText: nextRawText || null
+      ...(refreshText ? { rawText: nextRawText || null } : {})
     }
   });
 }
 
 function shouldRefreshResumeAssetText(kind: string) {
   return kind === "DOCX" || kind === "DOC" || kind === "TEXT";
+}
+
+function shouldUseTextInResumeParsing(fileName: string, mimeType?: string | null) {
+  const kind = detectResumeAssetKind(fileName, mimeType);
+  return kind === "PDF" || kind === "DOCX";
+}
+
+function chooseAutomaticParseAsset<T extends { kind: ResumeAssetKind }>(assets: T[]) {
+  return assets.find((asset) => asset.kind === "DOCX") || assets.find((asset) => asset.kind === "PDF") || null;
 }
 
 async function exportResumeDraftArtifact({
@@ -1795,11 +1960,7 @@ export async function reviseTailorDraftRun(formData: FormData) {
       jobLead: { ownerId: user.id }
     },
     include: {
-      resume: {
-        include: {
-          assets: true
-        }
-      },
+      resume: { select: { id: true, title: true, artifactName: true } },
       jobLead: true
     }
   });
@@ -1807,6 +1968,8 @@ export async function reviseTailorDraftRun(formData: FormData) {
   if (!run) {
     redirect("/tailor");
   }
+
+  const confirmedDocument = await requireConfirmedResumeForTailor(user.id, run.resumeId);
 
   const currentDraftTitle =
     normalizeDraftTitle(
@@ -1831,9 +1994,7 @@ export async function reviseTailorDraftRun(formData: FormData) {
   const result = await reviseResumeDraft({
     jobTitle: run.jobLead.roleTitle,
     companyName: run.jobLead.companyName,
-    resumeText: [resolveResumeText(run.resume).text, run.resume.note ? `版本备注：${run.resume.note}` : ""]
-      .filter(Boolean)
-      .join("\n\n"),
+    resumeText: formatResumeDocument(confirmedDocument.document),
     currentDraftTitle,
     currentDraftText,
     customInstructions,
@@ -1855,7 +2016,7 @@ export async function reviseTailorDraftRun(formData: FormData) {
         )
       ),
       draftText: normalizeDraftBody(result.data.draftText || currentDraftText),
-      suggestionsJson: JSON.stringify(result.data)
+      suggestionsJson: JSON.stringify({ ...result.data, sourceResumeParseId: confirmedDocument.resumeParseId })
     }
   });
 

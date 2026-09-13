@@ -46,7 +46,7 @@ export function AddResumeVariantDialog({
               </button>
             </div>
 
-            <form action={createManualResumeVariant} className="mt-5 space-y-4" encType="multipart/form-data">
+            <form action={createManualResumeVariant} className="mt-5 space-y-4">
               <input type="hidden" name="resumeId" value={resumeId} />
 
               <label className="block text-sm text-slate-600">
