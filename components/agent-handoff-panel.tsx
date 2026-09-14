@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { agentHandoffTasks, buildAgentHandoff, type AgentHandoffInput, type AgentHandoffTask } from "@/lib/agent-handoff";
+import { agentHandoffTasks, buildAgentHandoff, type AgentHandoffInput, type AgentHandoffTask } from "@/lib/agent-handoff-client";
 
 export function AgentHandoffPanel({ input }: { input: AgentHandoffInput }) {
   const [task, setTask] = useState<AgentHandoffTask>("interview");

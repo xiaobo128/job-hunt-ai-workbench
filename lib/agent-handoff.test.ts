@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildAgentHandoff, candidateFactsFromConfirmedResume, createAgentHandoffInput } from "@/lib/agent-handoff";
+import { candidateFactsFromConfirmedResume, createAgentHandoffInput } from "@/lib/agent-handoff";
+import { buildAgentHandoff } from "@/lib/agent-handoff-client";
 
 const source = {
   resumeId: "resume-1",
