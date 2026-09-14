@@ -75,7 +75,7 @@ export function ResumeNoteInline({
           }
         }}
         className="min-h-[56px] w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm leading-6 outline-none"
-        placeholder="例如：这个版本突出 AI 项目经历，没有展开运营项目，主要用于 AI 产品和策略岗位。"
+        placeholder="例如：重点经历、求职方向或需要补充确认的信息。"
       />
     );
   }
@@ -90,7 +90,7 @@ export function ResumeNoteInline({
       {note.trim() ? (
         <span className="block truncate">{note.trim()}</span>
       ) : (
-        <span className="text-slate-400">双击填写这版简历的备注</span>
+        <span className="text-slate-400">双击填写候选人资料说明</span>
       )}
     </button>
   );

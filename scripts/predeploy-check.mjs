@@ -76,7 +76,7 @@ if (storageProvider === "local") {
     fail("RESUME_BLOB_STORE_ID is missing");
   }
 } else if (storageProvider) {
-  warn(`STORAGE_PROVIDER is set to ${storageProvider}; verify that lib/storage.ts supports it`);
+  warn("STORAGE_PROVIDER is set to a non-standard provider; verify that the configured provider is supported");
 }
 
 for (const key of optional) {

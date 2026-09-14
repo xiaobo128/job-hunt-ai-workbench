@@ -14,7 +14,7 @@ export function DeleteJobForm({
 
   function handleDelete() {
     const confirmed = window.confirm(
-      "确认删除这个岗位吗？删除后会同时清理这条岗位的申请记录、相关事件和已保存的定制简历记录。"
+      "确认删除这个岗位吗？删除后会同时清理这条岗位的申请记录和相关事件。"
     );
 
     if (!confirmed) {

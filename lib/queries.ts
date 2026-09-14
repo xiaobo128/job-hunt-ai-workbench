@@ -1,79 +1,45 @@
 import { prisma, withDbRetry } from "@/lib/db";
 import { requireSessionUser } from "@/lib/session";
+import { getRemainingDays, sortWorkflowItems, uniqueCriticalEvents, type WorkflowItem } from "@/lib/workflow";
 
 export async function getDashboardData() {
   const user = await requireSessionUser();
-  const deadlineWindowStart = new Date();
-  const deadlineWindowEnd = new Date(deadlineWindowStart.getTime() + 5 * 24 * 60 * 60 * 1000);
-  const staleJobCutoff = new Date(deadlineWindowStart.getTime() - 5 * 24 * 60 * 60 * 1000);
-  const recentNotificationCutoff = new Date(deadlineWindowStart.getTime() - 24 * 60 * 60 * 1000);
+  const now = new Date();
+  const windowEnd = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
+  const activeApplicationWhere = {
+    currentStage: { not: "CLOSED" as const },
+    jobLead: { ownerId: user.id, status: { not: "CLOSED" as const } }
+  };
 
-  const [
-    jobsCount,
-    resumesCount,
-    applicationsCount,
-    recentJobs,
-    recentEvents,
-    needsReviewJobs,
-    fallbackItems,
-    deadlineEvents,
-    staleUnappliedJobs,
-    upcomingScheduleEvents,
-    recentNotificationEvents
-  ] = await withDbRetry("getDashboardData", () =>
+  const [applications, deadlineEvents, scheduleEvents, recentEvents] = await withDbRetry("getDashboardData", () =>
     Promise.all([
-        prisma.jobLead.count({
-          where: { ownerId: user.id }
-        }),
-        prisma.resume.count({
-          where: { ownerId: user.id }
-        }),
-        prisma.application.count({
-          where: { jobLead: { ownerId: user.id } }
-        }),
-        prisma.jobLead.findMany({
-          where: { ownerId: user.id },
-          include: { application: true },
-          orderBy: { updatedAt: "desc" },
-          take: 5
-        }),
-        prisma.event.findMany({
-          where: { application: { jobLead: { ownerId: user.id } } },
-          include: { application: { include: { jobLead: true } } },
-          orderBy: { createdAt: "desc" },
-          take: 5
-        }),
-        prisma.jobLead.findMany({
-          where: { ownerId: user.id, needsReview: true },
-          orderBy: { createdAt: "desc" },
-          take: 5
-        }),
-        prisma.jobLead.findMany({
-          where: {
-            ownerId: user.id,
-            OR: [{ parseProvider: "local" }, { parseNote: { contains: "fallback" } }]
-          },
-          orderBy: { updatedAt: "desc" },
-          take: 5
+        prisma.application.findMany({
+          where: activeApplicationWhere,
+          select: {
+            id: true,
+            appliedAt: true,
+            currentStage: true,
+            nextAction: true,
+            nextActionDueAt: true,
+            updatedAt: true,
+            jobLead: { select: { id: true, companyName: true, roleTitle: true } }
+          }
         }),
         prisma.event.findMany({
           where: {
             eventType: "DEADLINE",
             eventTime: {
-              gte: deadlineWindowStart,
-              lte: deadlineWindowEnd
+              gte: now,
+              lte: windowEnd
             },
-            application: {
-              currentStage: { not: "CLOSED" },
-              jobLead: {
-                ownerId: user.id,
-                status: { not: "CLOSED" }
-              }
-            }
+            application: activeApplicationWhere
           },
           select: {
             id: true,
+            applicationId: true,
+            eventType: true,
             eventTime: true,
+            createdAt: true,
             application: {
               select: {
                 appliedAt: true,
@@ -88,49 +54,26 @@ export async function getDashboardData() {
               }
             }
           },
-          orderBy: { eventTime: "asc" }
-        }),
-        prisma.jobLead.findMany({
-          where: {
-            ownerId: user.id,
-            createdAt: { lte: staleJobCutoff },
-            status: { not: "CLOSED" },
-            application: {
-              is: {
-                appliedAt: null,
-                currentStage: { in: ["INTERESTED", "READY_TO_APPLY"] }
-              }
-            }
-          },
-          select: {
-            id: true,
-            companyName: true,
-            roleTitle: true,
-            createdAt: true
-          },
-          orderBy: { createdAt: "asc" }
+          orderBy: [{ eventTime: "asc" }, { id: "asc" }]
         }),
         prisma.event.findMany({
           where: {
             eventType: { in: ["ASSESSMENT", "INTERVIEW"] },
             eventTime: {
-              gte: deadlineWindowStart,
-              lte: deadlineWindowEnd
+              gte: now,
+              lte: windowEnd
             },
-            application: {
-              currentStage: { not: "CLOSED" },
-              jobLead: {
-                ownerId: user.id,
-                status: { not: "CLOSED" }
-              }
-            }
+            application: activeApplicationWhere
           },
           select: {
             id: true,
+            applicationId: true,
             eventType: true,
             eventTime: true,
+            createdAt: true,
             application: {
               select: {
+                currentStage: true,
                 jobLead: {
                   select: {
                     id: true,
@@ -141,16 +84,16 @@ export async function getDashboardData() {
               }
             }
           },
-          orderBy: { eventTime: "asc" }
+          orderBy: [{ eventTime: "asc" }, { id: "asc" }]
         }),
         prisma.event.findMany({
-          where: {
-            createdAt: { gte: recentNotificationCutoff },
-            application: { jobLead: { ownerId: user.id } }
-          },
+          where: { application: activeApplicationWhere },
           select: {
             id: true,
+            applicationId: true,
             eventType: true,
+            eventTime: true,
+            title: true,
             createdAt: true,
             application: {
               select: {
@@ -164,7 +107,8 @@ export async function getDashboardData() {
               }
             }
           },
-          orderBy: { createdAt: "desc" }
+          orderBy: [{ createdAt: "desc" }, { id: "asc" }],
+          take: 30
         })
       ])
   );
@@ -177,7 +121,7 @@ export async function getDashboardData() {
   }>;
   const seenDeadlineJobIds = new Set<string>();
 
-  for (const event of deadlineEvents) {
+  for (const event of uniqueCriticalEvents(deadlineEvents)) {
     const job = event.application.jobLead;
     if (!event.eventTime || seenDeadlineJobIds.has(job.id)) continue;
 
@@ -190,23 +134,11 @@ export async function getDashboardData() {
     });
   }
 
-  type TodayActionItem = {
-    id: string;
-    href: string;
-    companyName: string;
-    roleTitle: string;
-    reason: string;
-    timeLabel: string;
-    timeAt: Date;
-    priority: number;
-  };
-
-  const todayActionItems: TodayActionItem[] = [];
-  const coveredEventIds = new Set<string>();
+  const todayActionItems: WorkflowItem[] = [];
   const deadlineActionJobIds = new Set<string>();
   const unappliedStages = new Set(["INTERESTED", "READY_TO_APPLY"]);
 
-  for (const event of deadlineEvents) {
+  for (const event of uniqueCriticalEvents(deadlineEvents)) {
     const job = event.application.jobLead;
     if (
       !event.eventTime ||
@@ -216,19 +148,16 @@ export async function getDashboardData() {
       continue;
     }
 
-    coveredEventIds.add(event.id);
     if (deadlineActionJobIds.has(job.id)) continue;
 
-    const remainingDays = Math.max(
-      1,
-      Math.ceil((event.eventTime.getTime() - deadlineWindowStart.getTime()) / (24 * 60 * 60 * 1000))
-    );
+    const remainingDays = getRemainingDays(event.eventTime, now);
     deadlineActionJobIds.add(job.id);
     todayActionItems.push({
       id: `deadline:${job.id}`,
       href: `/jobs/${job.id}`,
       companyName: job.companyName,
       roleTitle: job.roleTitle,
+      stage: event.application.currentStage,
       reason: `尚未投递，距离截止还有 ${remainingDays} 天`,
       timeLabel: "截止时间",
       timeAt: event.eventTime,
@@ -236,80 +165,47 @@ export async function getDashboardData() {
     });
   }
 
-  for (const job of staleUnappliedJobs) {
-    const savedDays = Math.max(
-      5,
-      Math.floor((deadlineWindowStart.getTime() - job.createdAt.getTime()) / (24 * 60 * 60 * 1000))
-    );
+  for (const event of uniqueCriticalEvents(scheduleEvents)) {
+    if (!event.eventTime) continue;
+
+    const job = event.application.jobLead;
     todayActionItems.push({
-      id: `stale:${job.id}`,
+      id: `schedule:${event.id}`,
       href: `/jobs/${job.id}`,
       companyName: job.companyName,
       roleTitle: job.roleTitle,
-      reason: `已保存 ${savedDays} 天，仍未投递`,
-      timeLabel: "保存时间",
-      timeAt: job.createdAt,
+      stage: event.application.currentStage,
+      reason: event.eventType === "INTERVIEW" ? "即将参加面试" : "即将参加笔试",
+      timeLabel: "安排时间",
+      timeAt: event.eventTime,
       priority: 2
     });
   }
 
-  const seenScheduleReasons = new Set<string>();
-  for (const event of upcomingScheduleEvents) {
-    if (!event.eventTime) continue;
+  for (const application of applications) {
+    const nextAction = application.nextAction?.trim();
+    if (!nextAction) continue;
 
-    const job = event.application.jobLead;
-    const reasonKey = `${job.id}:${event.eventType}`;
-    coveredEventIds.add(event.id);
-    if (seenScheduleReasons.has(reasonKey)) continue;
-
-    seenScheduleReasons.add(reasonKey);
     todayActionItems.push({
-      id: `schedule:${reasonKey}`,
-      href: `/jobs/${job.id}`,
-      companyName: job.companyName,
-      roleTitle: job.roleTitle,
-      reason: event.eventType === "INTERVIEW" ? "即将参加面试" : "即将参加笔试",
-      timeLabel: "安排时间",
-      timeAt: event.eventTime,
+      id: `next-action:${application.id}`,
+      href: `/jobs/${application.jobLead.id}`,
+      companyName: application.jobLead.companyName,
+      roleTitle: application.jobLead.roleTitle,
+      stage: application.currentStage,
+      reason: nextAction,
+      timeLabel: application.nextActionDueAt ? "行动截止" : "最近更新",
+      timeAt: application.nextActionDueAt ?? application.updatedAt,
       priority: 3
     });
   }
 
-  const seenNotificationReasons = new Set<string>();
-  for (const event of recentNotificationEvents) {
-    const job = event.application.jobLead;
-    const reasonKey = `${job.id}:${event.eventType}`;
-    if (coveredEventIds.has(event.id) || seenNotificationReasons.has(reasonKey)) continue;
-
-    seenNotificationReasons.add(reasonKey);
-    todayActionItems.push({
-      id: `notification:${event.id}`,
-      href: "/notifications",
-      companyName: job.companyName,
-      roleTitle: job.roleTitle,
-      reason: "最近导入的新通知，待查看",
-      timeLabel: "导入时间",
-      timeAt: event.createdAt,
-      priority: 4
-    });
-  }
-
-  todayActionItems.sort((left, right) => {
-    if (left.priority !== right.priority) return left.priority - right.priority;
-    if (left.priority === 4) return right.timeAt.getTime() - left.timeAt.getTime();
-    return left.timeAt.getTime() - right.timeAt.getTime();
-  });
+  const recentTimelineEvents = uniqueCriticalEvents(recentEvents).slice(0, 10);
 
   return {
-    jobsCount,
-    resumesCount,
-    applicationsCount,
-    recentJobs,
-    recentEvents,
-    needsReviewJobs,
-    fallbackItems,
     upcomingDeadlineJobs,
-    todayActionItems: todayActionItems.slice(0, 10)
+    upcomingScheduleEvents: uniqueCriticalEvents(scheduleEvents).slice(0, 10),
+    recentTimelineEvents,
+    todayActionItems: sortWorkflowItems(todayActionItems).slice(0, 10)
   };
 }
 

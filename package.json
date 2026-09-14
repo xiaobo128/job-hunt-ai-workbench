@@ -9,11 +9,15 @@
     "lint": "next lint",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:generate:postgres": "prisma generate --schema prisma/schema.postgres.prisma",
+    "prisma:migrate:status:postgres": "prisma migrate status --schema prisma/schema.postgres.prisma",
+    "prisma:migrate:deploy:postgres": "prisma migrate deploy --schema prisma/schema.postgres.prisma",
     "prisma:migrate": "prisma migrate dev",
     "prisma:db:push": "prisma db push --schema prisma/schema.prisma",
     "prisma:db:push:postgres": "prisma db push --schema prisma/schema.postgres.prisma",
     "prisma:seed": "node prisma/seed.js",
     "predeploy:check": "node scripts/predeploy-check.mjs",
+    "release:static-check": "node scripts/release/static-check.mjs",
+    "release:smoke": "node scripts/release/smoke.mjs",
     "prepare:env:production": "node scripts/prepare-production-env.mjs"
   },
   "dependencies": {

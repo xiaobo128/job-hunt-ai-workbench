@@ -7,6 +7,8 @@ import { Panel } from "@/components/cards";
 import { JobDetailReturnButton } from "@/components/job-detail-return-button";
 import { JobDetailSubmitButton } from "@/components/job-detail-submit-button";
 import { JobStageProgress } from "@/components/job-stage-progress";
+import { AgentHandoffPanel } from "@/components/agent-handoff-panel";
+import { createAgentHandoffInput } from "@/lib/agent-handoff";
 import { getStageDisplayLabel, normalizeApplicationStage, stageOptions } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { formatDate, listToMultiline } from "@/lib/format";
@@ -56,22 +58,34 @@ export default async function JobDetailPage({
     requirementsText: listToMultiline(job.requirements)
   });
 
-  const resumeVariantIds = job.resumeVariants.map((variant) => variant.id);
-  const agentLinkedVariantIds = new Set(
-    resumeVariantIds.length === 0
-      ? []
-      : (
-          await prisma.agentRun.findMany({
-            where: {
-              userId: job.ownerId,
-              resumeVariantId: { in: resumeVariantIds }
-            },
-            select: { resumeVariantId: true }
-          })
-        )
-          .map((run) => run.resumeVariantId)
-          .filter((value): value is string => Boolean(value))
-  );
+  const currentResume = await prisma.resume.findFirst({
+    where: { ownerId: job.ownerId },
+    orderBy: { updatedAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      parseAttempts: {
+        where: { status: "CONFIRMED" },
+        orderBy: [{ confirmedAt: "desc" }, { id: "asc" }],
+        take: 1,
+        select: { id: true, documentJson: true }
+      }
+    }
+  });
+  const selectedParse = currentResume?.parseAttempts[0] || null;
+  const handoffInput = createAgentHandoffInput({
+    job,
+    application: job.application,
+    events: job.application.events,
+    candidateSource: currentResume && selectedParse
+      ? {
+          resumeId: currentResume.id,
+          resumeTitle: currentResume.title,
+          confirmedParseId: selectedParse.id,
+          documentJson: selectedParse.documentJson
+        }
+      : null
+  });
 
   return (
     <PageShell
@@ -165,64 +179,7 @@ export default async function JobDetailPage({
           />
         </Panel>
 
-        <Panel title="关联定制简历" subtitle="这里显示简历仓库里已经关联到这个岗位的历史 AI 版本或手动上传版本。">
-          {job.resumeVariants.length === 0 ? (
-            <div className="rounded-2xl bg-panel px-4 py-3 text-sm text-slate-500">
-              还没有关联到这个岗位的定制简历。你可以在简历仓库上传外部修改后的版本并关联此岗位。
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {job.resumeVariants.map((variant) => (
-                <div key={variant.id} className="rounded-2xl border border-line p-3.5">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="text-sm font-medium text-ink">{variant.title}</div>
-                        <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-                          {getVariantSourceLabel(variant.sourceType)}
-                        </span>
-                        {agentLinkedVariantIds.has(variant.id) ? (
-                          <span className="inline-flex rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-                            外部 Agent
-                          </span>
-                        ) : null}
-                      </div>
-                      <div className="mt-1 text-sm text-slate-500">
-                        基于 {variant.resume.title} | 保存于 {formatDate(variant.createdAt)}
-                      </div>
-                      {variant.note ? <p className="mt-2 text-sm leading-6 text-slate-600">{variant.note}</p> : null}
-                    </div>
-                    <div className="flex shrink-0 flex-wrap gap-2">
-                      {variant.fileUrl ? (
-                        <a
-                          href={`/api/resume-variants/${variant.id}/download`}
-                          className="inline-flex h-10 items-center justify-center rounded-xl border border-line px-4 text-sm font-medium text-ink"
-                        >
-                          下载文件
-                        </a>
-                      ) : variant.draftText ? (
-                        <span className="inline-flex h-10 items-center justify-center rounded-xl border border-dashed border-line px-4 text-sm text-slate-500">
-                          仅保存正文
-                        </span>
-                      ) : null}
-                      <Link href="/resumes" className="inline-flex h-10 items-center justify-center rounded-xl bg-ink px-4 text-sm font-medium text-white">
-                        去简历仓库
-                      </Link>
-                    </div>
-                  </div>
-                  {variant.draftText ? (
-                    <details className="mt-3">
-                      <summary className="cursor-pointer text-sm font-medium text-accent">查看 AI 草稿正文</summary>
-                      <pre className="mt-3 whitespace-pre-wrap rounded-2xl bg-panel p-3 text-sm leading-5 text-slate-700">
-                        {variant.draftText}
-                      </pre>
-                    </details>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          )}
-        </Panel>
+        <AgentHandoffPanel input={handoffInput} />
 
         <Panel title="推进备注" subtitle="推进情况、投递渠道、面试安排、联系人和个人判断都会同步到岗位工作台。">
           <form action={updateApplicationStage} className="space-y-3">
@@ -404,10 +361,6 @@ function TextAreaField({
 function ProviderBadge({ provider }: { provider: string | null }) {
   const label = provider === "openai" ? "OpenAI" : provider === "external-agent" ? "外部 Agent" : "本地降级";
   return <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{label}</span>;
-}
-
-function getVariantSourceLabel(sourceType: string) {
-  return sourceType === "AI_DRAFT" ? "AI 完整草稿" : "手动修改上传";
 }
 
 function buildWorkspaceHref({

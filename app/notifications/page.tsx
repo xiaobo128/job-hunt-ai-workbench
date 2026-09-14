@@ -1,6 +1,6 @@
 import { PageShell } from "@/components/app-shell";
 import { AddNotificationDialog } from "@/components/add-notification-dialog";
-import { triggerNotificationSync, updateNotificationEvent } from "@/app/actions";
+import { updateNotificationEvent } from "@/app/actions";
 import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { requireSessionUser } from "@/lib/session";
@@ -18,7 +18,10 @@ export default async function NotificationsPage() {
   const user = await requireSessionUser();
   const [applications, events] = await Promise.all([
     prisma.application.findMany({
-      where: { jobLead: { ownerId: user.id } },
+      where: {
+        currentStage: { not: "CLOSED" },
+        jobLead: { ownerId: user.id, status: { not: "CLOSED" } }
+      },
       include: {
         jobLead: {
           select: { companyName: true, roleTitle: true }
@@ -27,7 +30,12 @@ export default async function NotificationsPage() {
       orderBy: { updatedAt: "desc" }
     }),
     prisma.event.findMany({
-      where: { application: { jobLead: { ownerId: user.id } } },
+      where: {
+        application: {
+          currentStage: { not: "CLOSED" },
+          jobLead: { ownerId: user.id, status: { not: "CLOSED" } }
+        }
+      },
       include: {
         application: {
           include: {
@@ -50,7 +58,7 @@ export default async function NotificationsPage() {
   return (
     <PageShell
       title="通知管理"
-      description="先导入通知，再确认或补充解析后的内容。展开任意一条记录后，可以继续修正字段并把这条通知推送进自动化流程。"
+      description="导入通知后可人工确认或修正；每条记录都会作为申请的 Event 时间线来源。"
       action={<AddNotificationDialog applications={applicationOptions} />}
     >
       <div className="space-y-3">
@@ -155,17 +163,7 @@ export default async function NotificationsPage() {
                       </a>
                     ) : null}
 
-                    <div className="flex flex-wrap gap-3">
-                      <button className="flex-1 rounded-2xl bg-ink px-4 py-3 text-sm font-medium text-white">
-                        保存通知
-                      </button>
-                      <button
-                        formAction={triggerNotificationSync}
-                        className="flex-1 rounded-2xl border border-line bg-white px-4 py-3 text-sm font-medium text-ink"
-                      >
-                        同步到自动化
-                      </button>
-                    </div>
+                    <button className="w-full rounded-2xl bg-ink px-4 py-3 text-sm font-medium text-white">保存通知</button>
                   </form>
                 </div>
               </details>
