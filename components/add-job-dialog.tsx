@@ -141,7 +141,7 @@ export function AddJobDialog() {
                         placeholder="https://..."
                       />
                       <span className="mt-2 block text-xs text-slate-400">
-                        这里只保存来源链接，方便后续回看；当前不会自动打开外部招聘链接抓取正文。
+                        链接用于回看来源；请同时粘贴岗位正文或补充关键信息。
                       </span>
                     </label>
 

@@ -11,10 +11,10 @@ export default async function RegisterPage({
 
   return (
     <div className="rounded-[28px] border border-line bg-white/90 p-8 shadow-card backdrop-blur">
-      <div className="text-xs uppercase tracking-[0.22em] text-slate-400">AI 求职中枢</div>
+      <div className="text-xs uppercase tracking-[0.22em] text-slate-400">求职工作台</div>
       <h1 className="mt-3 text-3xl font-semibold text-ink">创建账号</h1>
       <p className="mt-2 text-sm leading-6 text-slate-600">
-        这一版先做基础的多用户注册，确保每个人的数据彼此隔离、可独立使用。
+        创建账号后，集中管理你的岗位、进度与候选人资料。
       </p>
 
       {error ? (

@@ -36,7 +36,7 @@ export function AddNotificationDialog({
                     <div>
                       <div className="text-lg font-semibold text-ink">导入通知</div>
                       <p className="mt-1 text-sm text-slate-500">
-                        粘贴邮件正文、OCR 文本或聊天内容，再关联到对应岗位。
+                        粘贴通知正文或聊天内容，再关联到对应岗位。
                       </p>
                     </div>
                     <button

@@ -24,39 +24,39 @@ export default async function AccountStatusPage() {
   const productionBlockers = [
     !runtime.deployment.usesHttpsAppUrl ? "APP_URL 还没有切到 HTTPS 的正式域名。" : null,
     runtime.database.provider !== "postgresql" ? "数据库当前还不是 PostgreSQL。" : null,
-    runtime.storage.provider === "local" ? "文件存储仍然在使用本地开发模式。" : null,
+    runtime.storage.provider === "local" ? "文件存储尚未完成配置。" : null,
     runtime.storage.provider === "vercel-blob" && !runtime.storage.isProductionReady
-      ? "Vercel Blob Token 还没有配置完整。"
+      ? "私有文件存储凭证尚未配置完整。"
       : null
   ].filter(Boolean) as string[];
 
   return (
     <PageShell
       title="服务状态"
-      description="查看部署可用性和最近自动化运行情况，判断当前环境是否适合稳定使用。"
+      description="查看服务配置和最近自动化运行情况。"
       action={
         <Link href="/account" className="inline-flex rounded-2xl border border-line px-4 py-3 text-sm">
           返回设置首页
         </Link>
       }
     >
-      <Panel title="部署状态" subtitle="这些检查项可以帮助你判断离正式上线还差什么。">
+      <Panel title="服务状态" subtitle="查看当前服务配置是否完整。">
         <div className="space-y-3">
           <RuntimeItem label="应用地址" value={runtime.appUrl || "未配置"} ready={runtime.deployment.usesHttpsAppUrl} />
           <RuntimeItem label="数据库" value={runtime.database.provider} ready={runtime.database.isProductionReady} />
           <RuntimeItem label="文件存储" value={runtime.storage.provider} ready={runtime.storage.isProductionReady} />
           <RuntimeItem
             label="AI 配置"
-            value={hasUserAiKey ? "已配置用户级密钥" : "使用环境变量或降级模式"}
+            value={hasUserAiKey ? "已配置账户密钥" : "尚未配置账户密钥"}
             ready={hasUserAiKey || runtime.ai.hasOpenAi}
           />
         </div>
         <div className="mt-4 rounded-2xl bg-panel p-4">
           <div className="text-sm font-medium text-ink">
-            {runtime.deployment.readyForProduction ? "当前环境已经比较接近可正式上线状态。" : "当前环境还有几项生产基础配置需要补齐。"}
+            {runtime.deployment.readyForProduction ? "服务配置已就绪。" : "服务配置尚未完成。"}
           </div>
           <div className="mt-2 text-sm text-slate-600">
-            {productionBlockers.length === 0 ? "核心部署条件已经基本具备。" : "建议先处理下面这些阻塞项，再对外公开发布。"}
+            {productionBlockers.length === 0 ? "核心服务条件已具备。" : "请先处理以下配置项。"}
           </div>
           {productionBlockers.length > 0 ? (
             <ul className="mt-3 space-y-2 text-sm text-slate-700">

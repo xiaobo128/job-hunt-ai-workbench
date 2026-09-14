@@ -248,7 +248,7 @@ export default async function JobDetailPage({
           <div className="mt-4 space-y-3 border-t border-line pt-4">
             <div className="text-sm font-medium text-ink">已有记录</div>
             {job.application.events.length === 0 ? (
-              <div className="rounded-2xl bg-panel px-4 py-3 text-sm text-slate-500">暂时还没有历史记录。</div>
+              <div className="rounded-2xl bg-panel px-4 py-3 text-sm text-slate-500">暂无历史记录。</div>
             ) : (
               job.application.events.map((event) => (
                 <div key={event.id} className="rounded-2xl border border-line p-3.5">
@@ -276,7 +276,7 @@ export default async function JobDetailPage({
         <Panel title="最近 Agent 运行记录" subtitle="这里会显示与这个岗位相关的接口写回和 webhook 触发结果。">
           {job.agentRuns.length === 0 ? (
             <div className="rounded-2xl bg-panel px-4 py-3 text-sm text-slate-500">
-              这个岗位暂时还没有关联的 Agent 运行记录。
+              这个岗位暂无 Agent 运行记录。
             </div>
           ) : (
             <div className="space-y-3">
@@ -359,7 +359,7 @@ function TextAreaField({
 }
 
 function ProviderBadge({ provider }: { provider: string | null }) {
-  const label = provider === "openai" ? "OpenAI" : provider === "external-agent" ? "外部 Agent" : "本地降级";
+  const label = provider === "openai" ? "OpenAI" : provider === "external-agent" ? "外部 Agent" : "待确认";
   return <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">{label}</span>;
 }
 

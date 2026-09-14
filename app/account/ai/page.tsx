@@ -17,18 +17,18 @@ export default async function AccountAiPage() {
   return (
     <PageShell
       title="AI 模型设置"
-      description="决定站内岗位解析、通知解析和简历微调优先使用哪套 AI 配置。普通用户通常只需要填服务商、模型和 API Key。"
+      description="设置岗位与通知解析使用的 AI 服务。"
       action={
         <Link href="/account" className="inline-flex rounded-2xl border border-line px-4 py-3 text-sm">
           返回设置首页
         </Link>
       }
     >
-      <Panel title="AI 配置" subtitle="这里保存的是用户级 AI 设置，不需要修改线上环境变量。">
+      <Panel title="AI 配置" subtitle="这些设置仅用于你的账户。">
         <div className="mb-5 space-y-4">
           <Callout
-            title="这部分是做什么的"
-            body="当你在站内使用岗位解析、通知解析或简历微调时，系统会优先读取这里保存的用户级 AI 配置，而不是依赖部署时写好的环境变量。这样同一套站点可以由不同用户使用各自的模型和密钥。"
+            title="使用范围"
+            body="这些设置用于岗位解析和通知解析，并仅应用于你的账户。"
           />
           <Callout
             title="普通用户怎么填"
@@ -134,7 +134,7 @@ export default async function AccountAiPage() {
             <NoteBlock title="API Key 状态">
               {hasUserAiKey
                 ? "当前用户级 API Key 已保存。岗位解析、通知解析和简历微调会优先使用这套配置。"
-                : "当前用户级 API Key 还没有保存。即使你已经选了服务商和模型，解析也可能继续回退到环境变量或本地降级模式。"}
+                : "尚未保存 API Key。保存后即可使用所选服务。"}
             </NoteBlock>
             <NoteBlock title="使用建议">
               普通用户先完成“服务商 + 文本模型 + API Key”即可。只有在你明确使用兼容网关、代理地址或企业中转时，才需要额外填写 API Base URL 和转发 Host。
@@ -143,16 +143,16 @@ export default async function AccountAiPage() {
 
           {!hasUserAiKey ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              如果你刚从旧版本切过来，请重新输入一次 API Key 再保存，这样用户级 AI 配置才会真正生效。
+              保存 API Key 后即可使用所选服务。
             </div>
           ) : null}
 
           <div className="text-sm text-slate-600">
             <div className="font-medium text-ink">补充说明</div>
             <ul className="mt-3 space-y-2">
-              <li>- 这套配置是按用户保存的，不会要求你去改线上环境变量。</li>
+              <li>- 这套配置仅应用于你的账户。</li>
               <li>- OpenRouter 和自定义服务默认按 OpenAI Responses API 兼容方式调用。</li>
-              <li>- 如果你的服务不是 Responses API 兼容接口，当前版本可能还不能直接使用。</li>
+              <li>- 请确认所选服务支持 OpenAI Responses API 兼容接口。</li>
             </ul>
           </div>
 

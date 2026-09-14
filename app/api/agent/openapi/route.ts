@@ -20,7 +20,7 @@ export async function GET() {
       title: "Job Hunt Workbench Agent API",
       version: "1.0.0",
       description:
-        "Phase 1 agent integration API for writing jobs, application status, resume variants, events, and tailor results back into the workbench."
+        "Agent integration API for writing jobs, application status, resume variants, events, and results back into the workbench."
     },
     servers: [{ url: serverUrl }],
     components: {

@@ -25,7 +25,7 @@ export default async function AgentApiPage() {
       }
     >
       <div className="space-y-4">
-        <Panel title="认证方式" subtitle="第一阶段采用每用户一个 API Token 的方式。">
+        <Panel title="认证方式" subtitle="每个账户使用独立的 API Token。">
           <div className="space-y-3 text-sm leading-6 text-slate-700">
             <p>
               先在账户中心创建一个 Token，然后在每次请求里通过下面这个头部带上它：
@@ -76,14 +76,14 @@ export default async function AgentApiPage() {
           </div>
         </Panel>
 
-        <Panel title="机器可读文档" subtitle="第一阶段已经提供一份轻量版 OpenAPI JSON 文档。">
+        <Panel title="机器可读文档" subtitle="提供 OpenAPI JSON 文档供自动化工具读取。">
           <div className="space-y-3 text-sm leading-6 text-slate-700">
             <p>
               如果你的工作流工具支持读取 OpenAPI 风格的文档，建议直接使用下面这个 JSON 入口，而不是手工从本页复制字段。
             </p>
             <div className="rounded-2xl bg-panel px-4 py-3 font-mono text-xs text-ink">{`${baseUrl}/api/agent/openapi`}</div>
             <p>
-              当前这版故意做得比较轻，但已经覆盖了 5 个入站接口的认证方式、请求体结构、返回格式和常见错误 payload。
+              文档覆盖入站接口的认证方式、请求体结构、返回格式和常见错误 payload。
             </p>
           </div>
         </Panel>
@@ -98,7 +98,7 @@ export default async function AgentApiPage() {
           </ol>
         </Panel>
 
-        <Panel title="接口总览" subtitle="第一阶段重点解决稳定写回和审计留痕。">
+        <Panel title="接口总览" subtitle="用于写入岗位、申请、事件和自动化结果。">
           <div className="grid gap-3">
             <EndpointCard
               method="POST"
@@ -142,7 +142,7 @@ export default async function AgentApiPage() {
           <ul className="space-y-2 text-sm leading-6 text-slate-700">
             <li>- `rawContent` 应尽量包含原始 JD 正文，而不只是一个链接。</li>
             <li>- `initialStage` 和 `currentStage` 必须使用应用当前已经采用的枚举字符串。</li>
-            <li>- `fileUrl` 需要是可访问链接，因为第一阶段还不支持直接上传二进制文件。</li>
+            <li>- `fileUrl` 需要是可访问的文件链接。</li>
             <li>- `suggestionsJson` 可以是任意结构化对象，但如果 key 稳定，UI 会更容易阅读。</li>
             <li>- `eventType` 会驱动面试、测评、录用和拒绝等事件的自动阶段同步。</li>
           </ul>
@@ -312,10 +312,10 @@ export default async function AgentApiPage() {
           </div>
         </Panel>
 
-        <Panel title="第一阶段边界" subtitle="这里区分当前已支持的能力和明确留到后面的能力。">
+        <Panel title="接口范围" subtitle="使用接口前，请确认下列支持范围。">
           <div className="grid gap-4 md:grid-cols-2">
             <div className="rounded-2xl bg-panel p-4">
-              <div className="text-sm font-medium text-ink">当前支持</div>
+              <div className="text-sm font-medium text-ink">支持内容</div>
               <ul className="mt-3 space-y-2 text-sm text-slate-700">
                 <li>- 写回岗位、阶段、事件、微调结果和简历版本。</li>
                 <li>- 从站内把简历、状态和通知上下文推送到外部 webhook。</li>
@@ -323,7 +323,7 @@ export default async function AgentApiPage() {
               </ul>
             </div>
             <div className="rounded-2xl bg-panel p-4">
-              <div className="text-sm font-medium text-ink">不在第一阶段</div>
+              <div className="text-sm font-medium text-ink">使用限制</div>
               <ul className="mt-3 space-y-2 text-sm text-slate-700">
                 <li>- OAuth 和第三方授权页面。</li>
                 <li>- 内置浏览器自动投递执行器。</li>
@@ -333,12 +333,12 @@ export default async function AgentApiPage() {
           </div>
         </Panel>
 
-        <Panel title="已知缺口" subtitle="如果要接更大的工作流，提前知道这些限制会更稳妥。">
+        <Panel title="使用说明" subtitle="请在接入前确认以下事项。">
           <ul className="space-y-2 text-sm leading-6 text-slate-700">
-            <li>- 现在已经有 OpenAPI JSON 入口，但仍是手工维护的规范，还不是从源码 schema 直接生成。</li>
-            <li>- 第一阶段会记录 Agent Run，但 UI 里还不能直接回放原始 request / response。</li>
-            <li>- 外部附件目前仍是 URL-first，原生上传协议和签名上传流程还需要后续阶段补齐。</li>
-            <li>- 出站 webhook payload 已经有文档，但还没有作为独立契约面做版本管理。</li>
+            <li>- OpenAPI JSON 可用于自动化工具读取接口结构。</li>
+            <li>- Agent 运行记录可用于查看执行状态。</li>
+            <li>- 外部附件请提供可访问的文件 URL。</li>
+            <li>- 出站 webhook 使用账户中配置的地址和校验字段。</li>
           </ul>
         </Panel>
       </div>
