@@ -304,7 +304,7 @@ export async function updateApplicationStage(formData: FormData) {
   });
 
   if (!application) {
-    return;
+    throw new Error("Application not found");
   }
 
   await prisma.application.update({
@@ -329,6 +329,7 @@ export async function updateApplicationStage(formData: FormData) {
   revalidatePath("/jobs");
   revalidatePath("/board");
   revalidatePath(`/jobs/${application.jobLeadId}`);
+
 }
 
 export async function createResume(formData: FormData) {
