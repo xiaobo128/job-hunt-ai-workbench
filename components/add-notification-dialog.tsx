@@ -102,7 +102,7 @@ export function AddNotificationDialog({
                       />
                     </label>
 
-                    <EventTimeFields requireEventTime />
+                    <EventTimeFields />
 
                     <label className="block text-sm text-slate-600">
                       附件
