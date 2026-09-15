@@ -280,6 +280,10 @@ model Event {
   aiNote        String?
   eventType     EventType
   eventTime     DateTime?
+  windowStartAt DateTime?
+  deadlineAt    DateTime?
+  receivedAt    DateTime?
+  relativeValidityMinutes Int?
   title         String
   artifactName  String?
   artifactUrl   String?
