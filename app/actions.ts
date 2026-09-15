@@ -17,7 +17,6 @@ import {
   createResumeAnalysis,
   extractJobTextFromImage,
   extractResumeTextFromImage,
-  parseNotification,
   ResumeAnalysisGenerationError,
   reviseResumeDraft,
   tailorResume
@@ -2024,70 +2023,72 @@ export async function reviseTailorDraftRun(formData: FormData) {
   redirect(`/tailor?run=${run.id}&rev=${Date.now()}&ts=${Date.now()}`);
 }
 
-export async function createNotificationEvent(formData: FormData) {
+export async function createNotificationEvent(
+  _previousState: { status: "idle" | "success" | "error"; message?: string },
+  formData: FormData
+): Promise<{ status: "idle" | "success" | "error"; message?: string }> {
   const user = await requireSessionUser();
-  const aiSettings = await getPersistedUserAiSettings(user.id);
-  const applicationId = formData.get("applicationId") as string;
+  const applicationId = ((formData.get("applicationId") as string | null) ?? "").trim();
+  const requestedEventType = (formData.get("eventType") as EventType | null) ?? "NOTE";
+  const eventType = Object.values(EventType).includes(requestedEventType) ? requestedEventType : "NOTE";
+  const requestedTitle = ((formData.get("title") as string | null) ?? "").trim();
   const file = formData.get("attachment") as File | null;
-  const uploaded = file && file.size > 0 ? await persistUpload(file, "notifications") : null;
-  const content =
-    ((formData.get("content") as string | null) ?? "").trim() || uploaded?.extractedText || "";
-
-  if (!content) {
-    return;
-  }
 
   const application = await prisma.application.findFirst({
     where: { id: applicationId, jobLead: { ownerId: user.id } }
   });
 
   if (!application) {
-    return;
+    return { status: "error", message: "请选择一个有效的关联申请。" };
   }
 
-  const result = await parseNotification({
-    content,
-    imagePath: uploaded?.mimeType.startsWith("image/") ? uploaded.absolutePath : undefined,
-    imageMimeType: uploaded?.mimeType.startsWith("image/") ? uploaded.mimeType : undefined,
-    settings: aiSettings
-  });
-  const parsedEvent = result.data;
+  try {
+    const uploaded = file && file.size > 0 ? await persistUpload(file, "notifications") : null;
+    const content =
+      ((formData.get("content") as string | null) ?? "").trim() || uploaded?.extractedText?.trim() || "";
 
-  await prisma.event.create({
-    data: {
-      applicationId: application.id,
-      aiProvider: result.provider,
-      aiNote: result.note,
-      eventType: parsedEvent.eventType as EventType,
-      eventTime: parsedEvent.eventTime ? new Date(parsedEvent.eventTime) : undefined,
-      title: parsedEvent.summary,
-      artifactName: uploaded?.originalName,
-      artifactUrl: uploaded?.fileUrl,
-      detailsJson: JSON.stringify({
-        content,
-        requirements: parsedEvent.requirements
-      })
+    if (!content) {
+      return { status: "error", message: "请填写通知内容或上传包含可提取文本的附件。" };
     }
-  });
 
-  const mappedStage = mapEventTypeToStage(parsedEvent.eventType as EventType);
+    const title = requestedTitle || content.replace(/\s+/g, " ").trim().slice(0, 100) || "导入通知";
 
-  if (mappedStage) {
-    const updatedApplication = await prisma.application.update({
-      where: { id: application.id },
-      data: { currentStage: mappedStage }
+    await prisma.event.create({
+      data: {
+        applicationId: application.id,
+        eventType,
+        title,
+        artifactName: uploaded?.originalName,
+        artifactUrl: uploaded?.fileUrl,
+        detailsJson: JSON.stringify({ content, requirements: [] })
+      }
     });
 
-    await prisma.jobLead.update({
-      where: { id: updatedApplication.jobLeadId },
-      data: { status: mappedStage }
-    });
+    const mappedStage = mapEventTypeToStage(eventType);
+
+    if (mappedStage) {
+      const updatedApplication = await prisma.application.update({
+        where: { id: application.id },
+        data: { currentStage: mappedStage }
+      });
+
+      await prisma.jobLead.update({
+        where: { id: updatedApplication.jobLeadId },
+        data: { status: mappedStage }
+      });
+    }
+
+    revalidatePath("/");
+    revalidatePath("/board");
+    revalidatePath("/notifications");
+    revalidatePath(`/notifications/${application.id}`);
+    revalidatePath(`/jobs/${application.jobLeadId}`);
+
+    return { status: "success" };
+  } catch (error) {
+    console.error("Unable to create notification event", error);
+    return { status: "error", message: "保存通知失败，请检查附件或稍后重试。" };
   }
-
-  revalidatePath("/");
-  revalidatePath("/board");
-  revalidatePath("/notifications");
-  revalidatePath(`/jobs/${application.jobLeadId}`);
 }
 
 export async function updateNotificationEvent(formData: FormData) {

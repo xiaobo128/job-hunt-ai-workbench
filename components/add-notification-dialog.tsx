@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useFormStatus } from "react-dom";
 import { createNotificationEvent } from "@/app/actions";
+import { useRouter } from "next/navigation";
+
+const initialState = { status: "idle" as const };
 
 type NotificationApplicationOption = {
   id: string;
@@ -16,6 +19,15 @@ export function AddNotificationDialog({
   applications: NotificationApplicationOption[];
 }) {
   const [open, setOpen] = useState(false);
+  const [state, formAction] = useActionState(createNotificationEvent, initialState);
+  const router = useRouter();
+
+  useEffect(() => {
+    if (state.status === "success") {
+      setOpen(false);
+      router.refresh();
+    }
+  }, [router, state]);
 
   return (
     <>
@@ -49,7 +61,7 @@ export function AddNotificationDialog({
                     </button>
                   </div>
 
-                  <form action={createNotificationEvent} className="mt-5 space-y-4">
+                  <form action={formAction} className="mt-5 space-y-4">
                     <label className="block text-sm text-slate-600">
                       关联申请
                       <select
@@ -65,6 +77,31 @@ export function AddNotificationDialog({
                     </label>
 
                     <label className="block text-sm text-slate-600">
+                      通知类型
+                      <select
+                        name="eventType"
+                        defaultValue="NOTE"
+                        className="mt-2 w-full rounded-2xl border border-line bg-panel px-4 py-3 outline-none"
+                      >
+                        <option value="NOTE">备注</option>
+                        <option value="ASSESSMENT">测评</option>
+                        <option value="INTERVIEW">面试</option>
+                        <option value="OFFER">录用</option>
+                        <option value="REJECTION">拒绝</option>
+                        <option value="DEADLINE">截止时间</option>
+                      </select>
+                    </label>
+
+                    <label className="block text-sm text-slate-600">
+                      标题（可选）
+                      <input
+                        name="title"
+                        className="mt-2 w-full rounded-2xl border border-line bg-panel px-4 py-3 outline-none"
+                        placeholder="留空时将从通知内容截取"
+                      />
+                    </label>
+
+                    <label className="block text-sm text-slate-600">
                       附件
                       <input
                         type="file"
@@ -73,6 +110,12 @@ export function AddNotificationDialog({
                         className="mt-2 block w-full rounded-2xl border border-dashed border-line bg-panel px-4 py-3 text-sm outline-none file:mr-3 file:rounded-xl file:border-0 file:bg-ink file:px-3 file:py-2 file:text-white"
                       />
                     </label>
+
+                    {state.status === "error" ? (
+                      <p role="alert" className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                        {state.message || "保存通知失败，请稍后重试。"}
+                      </p>
+                    ) : null}
 
                     <label className="block text-sm text-slate-600">
                       通知内容
@@ -113,7 +156,7 @@ function SubmitButton() {
       disabled={pending}
       className="rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-70"
     >
-      {pending ? "正在解析并导入..." : "导入通知"}
+      {pending ? "正在导入..." : "导入通知"}
     </button>
   );
 }
