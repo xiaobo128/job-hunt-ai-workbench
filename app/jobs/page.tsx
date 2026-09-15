@@ -12,7 +12,21 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
       select: {
         id: true, companyName: true, roleTitle: true, city: true, seniority: true, sourceName: true,
         parsedSummary: true, rawContent: true, needsReview: true, skills: true, status: true, updatedAt: true,
-        application: { select: { id: true, currentStage: true, submissionChannel: true, nextAction: true, note: true, updatedAt: true } }
+        application: {
+          select: {
+            id: true,
+            currentStage: true,
+            submissionChannel: true,
+            nextAction: true,
+            note: true,
+            updatedAt: true,
+            events: {
+              select: { eventType: true, title: true, eventTime: true, createdAt: true },
+              orderBy: [{ eventTime: "desc" }, { createdAt: "desc" }],
+              take: 10
+            }
+          }
+        }
       },
       orderBy: { updatedAt: "desc" }
     }),
