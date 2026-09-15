@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useFormStatus } from "react-dom";
 import { createNotificationEvent } from "@/app/actions";
+import { EventTimeFields } from "@/components/event-time-summary";
 import { useRouter } from "next/navigation";
 
 const initialState = { status: "idle" as const };
@@ -100,6 +101,8 @@ export function AddNotificationDialog({
                         placeholder="留空时将从通知内容截取"
                       />
                     </label>
+
+                    <EventTimeFields requireEventTime />
 
                     <label className="block text-sm text-slate-600">
                       附件

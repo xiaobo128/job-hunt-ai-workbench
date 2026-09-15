@@ -8,6 +8,7 @@ import { JobDetailReturnButton } from "@/components/job-detail-return-button";
 import { JobDetailSubmitButton } from "@/components/job-detail-submit-button";
 import { JobStageProgress } from "@/components/job-stage-progress";
 import { AgentHandoffPanel } from "@/components/agent-handoff-panel";
+import { EventTimeSummary } from "@/components/event-time-summary";
 import { createAgentHandoffInput } from "@/lib/agent-handoff";
 import { getStageDisplayLabel, normalizeApplicationStage, stageOptions } from "@/lib/constants";
 import { prisma } from "@/lib/db";
@@ -266,7 +267,8 @@ export default async function JobDetailPage({
                       {event.artifactName || "查看附件"}
                     </a>
                   ) : null}
-                  <div className="mt-2 text-xs text-slate-400">{formatDate(event.eventTime || event.createdAt)}</div>
+                  <div className="mt-2"><EventTimeSummary {...event} /></div>
+                  <div className="mt-1 text-xs text-slate-400">记录于 {formatDate(event.createdAt)}</div>
                 </div>
               ))
             )}
