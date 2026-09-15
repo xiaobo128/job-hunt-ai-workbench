@@ -2033,6 +2033,51 @@ export async function createNotificationEvent(
   const eventType = Object.values(EventType).includes(requestedEventType) ? requestedEventType : "NOTE";
   const requestedTitle = ((formData.get("title") as string | null) ?? "").trim();
   const file = formData.get("attachment") as File | null;
+  const parseDateField = (field: string) => {
+    const value = ((formData.get(field) as string | null) ?? "").trim();
+
+    if (!value) {
+      return { value: null as Date | null };
+    }
+
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? { error: `无效的 ${field} 时间。` } : { value: date };
+  };
+  const eventTime = parseDateField("eventTime");
+  const windowStartAt = parseDateField("windowStartAt");
+  const deadlineAt = parseDateField("deadlineAt");
+  const receivedAt = parseDateField("receivedAt");
+  const relativeValidityValueRaw = ((formData.get("relativeValidityValue") as string | null) ?? "").trim();
+  const relativeValidityUnit = ((formData.get("relativeValidityUnit") as string | null) ?? "").trim();
+
+  if (eventTime.error || windowStartAt.error || deadlineAt.error || receivedAt.error) {
+    return { status: "error", message: eventTime.error || windowStartAt.error || deadlineAt.error || receivedAt.error };
+  }
+
+  if (windowStartAt.value && deadlineAt.value && windowStartAt.value > deadlineAt.value) {
+    return { status: "error", message: "开始时间不得晚于截止时间。" };
+  }
+
+  let relativeValidityMinutes: number | null = null;
+
+  if (relativeValidityValueRaw) {
+    const relativeValidityValue = Number(relativeValidityValueRaw);
+    const multiplier = relativeValidityUnit === "hours" ? 60 : relativeValidityUnit === "days" ? 24 * 60 : null;
+
+    if (!Number.isFinite(relativeValidityValue) || relativeValidityValue <= 0 || !multiplier) {
+      return { status: "error", message: "有效时长必须是正数，并以小时或天为单位。" };
+    }
+
+    relativeValidityMinutes = relativeValidityValue * multiplier;
+
+    if (!Number.isInteger(relativeValidityMinutes) || relativeValidityMinutes <= 0) {
+      return { status: "error", message: "有效时长必须能转换为正整数分钟。" };
+    }
+
+    if (!receivedAt.value) {
+      return { status: "error", message: "填写有效时长时必须填写接收时间。" };
+    }
+  }
 
   const application = await prisma.application.findFirst({
     where: { id: applicationId, jobLead: { ownerId: user.id } }
@@ -2058,25 +2103,16 @@ export async function createNotificationEvent(
         applicationId: application.id,
         eventType,
         title,
+        eventTime: eventTime.value,
+        windowStartAt: windowStartAt.value,
+        deadlineAt: deadlineAt.value,
+        receivedAt: receivedAt.value,
+        relativeValidityMinutes,
         artifactName: uploaded?.originalName,
         artifactUrl: uploaded?.fileUrl,
         detailsJson: JSON.stringify({ content, requirements: [] })
       }
     });
-
-    const mappedStage = mapEventTypeToStage(eventType);
-
-    if (mappedStage) {
-      const updatedApplication = await prisma.application.update({
-        where: { id: application.id },
-        data: { currentStage: mappedStage }
-      });
-
-      await prisma.jobLead.update({
-        where: { id: updatedApplication.jobLeadId },
-        data: { status: mappedStage }
-      });
-    }
 
     revalidatePath("/");
     revalidatePath("/board");
@@ -2094,14 +2130,53 @@ export async function createNotificationEvent(
 export async function updateNotificationEvent(formData: FormData) {
   const user = await requireSessionUser();
   const eventId = formData.get("eventId") as string;
-  const eventType = formData.get("eventType") as EventType;
   const title = ((formData.get("title") as string | null) ?? "").trim();
-  const eventTimeRaw = ((formData.get("eventTime") as string | null) ?? "").trim();
   const content = ((formData.get("content") as string | null) ?? "").trim();
   const requirementsText = ((formData.get("requirementsText") as string | null) ?? "").trim();
+  const parseDateField = (field: string) => {
+    const value = ((formData.get(field) as string | null) ?? "").trim();
+
+    if (!value) {
+      return { value: null as Date | null };
+    }
+
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? { error: `无效的 ${field} 时间。` } : { value: date };
+  };
+  const eventTime = parseDateField("eventTime");
+  const windowStartAt = parseDateField("windowStartAt");
+  const deadlineAt = parseDateField("deadlineAt");
+  const receivedAt = parseDateField("receivedAt");
+  const relativeValidityValueRaw = ((formData.get("relativeValidityValue") as string | null) ?? "").trim();
+  const relativeValidityUnit = ((formData.get("relativeValidityUnit") as string | null) ?? "").trim();
 
   if (!eventId || !title) {
     return;
+  }
+
+  if (eventTime.error || windowStartAt.error || deadlineAt.error || receivedAt.error) {
+    return;
+  }
+
+  if (windowStartAt.value && deadlineAt.value && windowStartAt.value > deadlineAt.value) {
+    return;
+  }
+
+  let relativeValidityMinutes: number | null = null;
+
+  if (relativeValidityValueRaw) {
+    const relativeValidityValue = Number(relativeValidityValueRaw);
+    const multiplier = relativeValidityUnit === "hours" ? 60 : relativeValidityUnit === "days" ? 24 * 60 : null;
+
+    if (!Number.isFinite(relativeValidityValue) || relativeValidityValue <= 0 || !multiplier) {
+      return;
+    }
+
+    relativeValidityMinutes = relativeValidityValue * multiplier;
+
+    if (!Number.isInteger(relativeValidityMinutes) || relativeValidityMinutes <= 0 || !receivedAt.value) {
+      return;
+    }
   }
 
   const event = await prisma.event.findFirst({
@@ -2123,29 +2198,18 @@ export async function updateNotificationEvent(formData: FormData) {
   await prisma.event.update({
     where: { id: event.id },
     data: {
-      eventType,
       title,
-      eventTime: eventTimeRaw ? new Date(eventTimeRaw) : null,
+      eventTime: eventTime.value,
+      windowStartAt: windowStartAt.value,
+      deadlineAt: deadlineAt.value,
+      receivedAt: receivedAt.value,
+      relativeValidityMinutes,
       detailsJson: JSON.stringify({
         content,
         requirements
       })
     }
   });
-
-  const mappedStage = mapEventTypeToStage(eventType);
-
-  if (mappedStage) {
-    const updatedApplication = await prisma.application.update({
-      where: { id: event.applicationId },
-      data: { currentStage: mappedStage }
-    });
-
-    await prisma.jobLead.update({
-      where: { id: updatedApplication.jobLeadId },
-      data: { status: mappedStage }
-    });
-  }
 
   revalidatePath("/");
   revalidatePath("/board");
