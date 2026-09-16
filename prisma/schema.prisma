@@ -38,6 +38,12 @@ enum EventType {
   DEADLINE
 }
 
+enum EventStatus {
+  ACTIVE
+  COMPLETED
+  IGNORED
+}
+
 enum ResumeVariantSourceType {
   AI_DRAFT
   MANUAL_UPLOAD
@@ -279,6 +285,7 @@ model Event {
   aiProvider    String?
   aiNote        String?
   eventType     EventType
+  status        EventStatus @default(ACTIVE)
   eventTime     DateTime?
   windowStartAt DateTime?
   deadlineAt    DateTime?

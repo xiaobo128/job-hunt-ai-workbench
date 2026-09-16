@@ -5,6 +5,7 @@ import { readFile, writeFile } from "fs/promises";
 import {
   AgentRunKind,
   ApplicationStage,
+  EventStatus,
   EventType,
   Prisma,
   ResumeAssetKind,
@@ -330,6 +331,37 @@ export async function updateApplicationStage(formData: FormData) {
   revalidatePath("/board");
   revalidatePath(`/jobs/${application.jobLeadId}`);
 
+}
+
+export async function updateDashboardEventStatus(eventId: string, status: EventStatus) {
+  const user = await requireSessionUser();
+
+  if (!eventId || (status !== EventStatus.COMPLETED && status !== EventStatus.IGNORED)) {
+    throw new Error("Invalid event status");
+  }
+
+  const event = await prisma.event.findFirst({
+    where: { id: eventId, application: { jobLead: { ownerId: user.id } } },
+    select: { id: true, applicationId: true, application: { select: { jobLeadId: true } } }
+  });
+
+  if (!event) {
+    throw new Error("Event not found");
+  }
+
+  await prisma.event.update({ where: { id: event.id }, data: { status } });
+
+  revalidatePath("/");
+  revalidatePath("/notifications");
+  revalidatePath(`/notifications/${event.applicationId}`);
+  revalidatePath(`/jobs/${event.application.jobLeadId}`);
+}
+
+export async function closeDashboardApplication(applicationId: string) {
+  const formData = new FormData();
+  formData.set("applicationId", applicationId);
+  formData.set("stage", ApplicationStage.CLOSED);
+  await updateApplicationStage(formData);
 }
 
 export async function createResume(formData: FormData) {

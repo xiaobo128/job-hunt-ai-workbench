@@ -20,6 +20,13 @@ export type WorkflowItem = {
   priority: number;
 };
 
+export type DashboardWorkflowItem = WorkflowItem & {
+  applicationId: string;
+  sourceType: "EVENT" | "NEXT_ACTION";
+  eventId?: string;
+  displayTime: string;
+};
+
 const dayMs = 24 * 60 * 60 * 1000;
 
 /**
@@ -44,7 +51,7 @@ export function uniqueCriticalEvents<T extends WorkflowEvent>(events: T[]) {
   });
 }
 
-export function sortWorkflowItems(items: WorkflowItem[]) {
+export function sortWorkflowItems<T extends WorkflowItem>(items: T[]): T[] {
   return [...items].sort((left, right) => {
     if (left.priority !== right.priority) return left.priority - right.priority;
     if (left.timeAt.getTime() !== right.timeAt.getTime()) return left.timeAt.getTime() - right.timeAt.getTime();

@@ -55,3 +55,38 @@ export function resolveEventTime({
     effectiveDueReason: deadlineAt === null ? null : "DEADLINE",
   };
 }
+
+export function formatDashboardEventTime(values: EventTimeInput) {
+  if (values.eventTime) return formatDateTime(values.eventTime);
+
+  if (values.windowStartAt && values.deadlineAt) {
+    return formatRange(values.windowStartAt, values.deadlineAt);
+  }
+
+  const resolved = resolveEventTime(values);
+  if (values.receivedAt && resolved.validUntil) {
+    return formatRange(values.receivedAt, resolved.validUntil);
+  }
+
+  if (values.deadlineAt) return `截至 ${formatDateTime(values.deadlineAt)}`;
+  return "时间待确认";
+}
+
+export function getDashboardEventDueAt(values: EventTimeInput) {
+  const resolved = resolveEventTime(values);
+  return values.eventTime ?? resolved.effectiveDueAt;
+}
+
+function formatRange(start: Date, end: Date) {
+  const startText = formatDateTime(start);
+  const sameDay = start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth() && start.getDate() === end.getDate();
+  return `${startText}–${sameDay ? formatTime(end) : formatDateTime(end)}`;
+}
+
+function formatDateTime(value: Date) {
+  return `${value.getMonth() + 1}/${value.getDate()} ${formatTime(value)}`;
+}
+
+function formatTime(value: Date) {
+  return `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
+}

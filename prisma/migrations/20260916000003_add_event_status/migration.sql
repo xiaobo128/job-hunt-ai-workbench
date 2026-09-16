@@ -1,0 +1,4 @@
+CREATE TYPE "EventStatus" AS ENUM ('ACTIVE', 'COMPLETED', 'IGNORED');
+
+ALTER TABLE "Event"
+  ADD COLUMN "status" "EventStatus" NOT NULL DEFAULT 'ACTIVE';

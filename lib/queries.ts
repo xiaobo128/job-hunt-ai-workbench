@@ -1,6 +1,7 @@
 import { prisma, withDbRetry } from "@/lib/db";
 import { requireSessionUser } from "@/lib/session";
-import { getRemainingDays, sortWorkflowItems, uniqueCriticalEvents, type WorkflowItem } from "@/lib/workflow";
+import { getRemainingDays, sortWorkflowItems, uniqueCriticalEvents, type DashboardWorkflowItem } from "@/lib/workflow";
+import { formatDashboardEventTime, getDashboardEventDueAt } from "@/lib/event-time";
 
 export async function getDashboardData() {
   const user = await requireSessionUser();
@@ -30,10 +31,7 @@ export async function getDashboardData() {
         prisma.event.findMany({
           where: {
             eventType: "DEADLINE",
-            eventTime: {
-              gte: now,
-              lte: windowEnd
-            },
+            status: "ACTIVE",
             application: activeApplicationWhere
           },
           select: {
@@ -41,6 +39,11 @@ export async function getDashboardData() {
             applicationId: true,
             eventType: true,
             eventTime: true,
+            windowStartAt: true,
+            deadlineAt: true,
+            receivedAt: true,
+            relativeValidityMinutes: true,
+            status: true,
             createdAt: true,
             application: {
               select: {
@@ -61,10 +64,7 @@ export async function getDashboardData() {
         prisma.event.findMany({
           where: {
             eventType: { in: ["ASSESSMENT", "INTERVIEW"] },
-            eventTime: {
-              gte: now,
-              lte: windowEnd
-            },
+            status: "ACTIVE",
             application: activeApplicationWhere
           },
           select: {
@@ -72,6 +72,11 @@ export async function getDashboardData() {
             applicationId: true,
             eventType: true,
             eventTime: true,
+            windowStartAt: true,
+            deadlineAt: true,
+            receivedAt: true,
+            relativeValidityMinutes: true,
+            status: true,
             createdAt: true,
             application: {
               select: {
@@ -95,6 +100,7 @@ export async function getDashboardData() {
             applicationId: true,
             eventType: true,
             eventTime: true,
+            status: true,
             title: true,
             createdAt: true,
             application: {
@@ -116,6 +122,7 @@ export async function getDashboardData() {
           where: {
             eventType: { in: ["ASSESSMENT", "INTERVIEW"] },
             eventTime: { gte: monthStart, lt: monthEnd },
+            status: { not: "IGNORED" },
             application: activeApplicationWhere
           },
           select: {
@@ -123,6 +130,7 @@ export async function getDashboardData() {
             applicationId: true,
             eventType: true,
             eventTime: true,
+            status: true,
             createdAt: true,
             title: true,
             application: { select: { jobLead: { select: { id: true, companyName: true, roleTitle: true } } } }
@@ -153,14 +161,17 @@ export async function getDashboardData() {
     });
   }
 
-  const todayActionItems: WorkflowItem[] = [];
+  const todayActionItems: DashboardWorkflowItem[] = [];
   const deadlineActionJobIds = new Set<string>();
   const unappliedStages = new Set(["INTERESTED", "READY_TO_APPLY"]);
 
   for (const event of uniqueCriticalEvents(deadlineEvents)) {
     const job = event.application.jobLead;
+    const dueAt = getDashboardEventDueAt(event);
     if (
-      !event.eventTime ||
+      !dueAt ||
+      dueAt < now ||
+      dueAt > windowEnd ||
       event.application.appliedAt ||
       !unappliedStages.has(event.application.currentStage)
     ) {
@@ -169,34 +180,43 @@ export async function getDashboardData() {
 
     if (deadlineActionJobIds.has(job.id)) continue;
 
-    const remainingDays = getRemainingDays(event.eventTime, now);
+    const remainingDays = getRemainingDays(dueAt, now);
     deadlineActionJobIds.add(job.id);
     todayActionItems.push({
       id: `deadline:${job.id}`,
-      href: `/jobs/${job.id}`,
+      href: `/notifications/${event.applicationId}`,
+      applicationId: event.applicationId,
+      sourceType: "EVENT",
+      eventId: event.id,
       companyName: job.companyName,
       roleTitle: job.roleTitle,
       stage: event.application.currentStage,
       reason: `尚未投递，距离截止还有 ${remainingDays} 天`,
       timeLabel: "截止时间",
-      timeAt: event.eventTime,
+      displayTime: formatDashboardEventTime(event),
+      timeAt: dueAt,
       priority: 1
     });
   }
 
   for (const event of uniqueCriticalEvents(scheduleEvents)) {
-    if (!event.eventTime) continue;
+    const dueAt = getDashboardEventDueAt(event);
+    if (!dueAt || dueAt < now || dueAt > windowEnd) continue;
 
     const job = event.application.jobLead;
     todayActionItems.push({
       id: `schedule:${event.id}`,
-      href: `/jobs/${job.id}`,
+      href: `/notifications/${event.applicationId}`,
+      applicationId: event.applicationId,
+      sourceType: "EVENT",
+      eventId: event.id,
       companyName: job.companyName,
       roleTitle: job.roleTitle,
       stage: event.application.currentStage,
       reason: event.eventType === "INTERVIEW" ? "即将参加面试" : "即将参加笔试",
       timeLabel: "安排时间",
-      timeAt: event.eventTime,
+      displayTime: formatDashboardEventTime(event),
+      timeAt: dueAt,
       priority: 2
     });
   }
@@ -208,11 +228,14 @@ export async function getDashboardData() {
     todayActionItems.push({
       id: `next-action:${application.id}`,
       href: `/jobs/${application.jobLead.id}`,
+      applicationId: application.id,
+      sourceType: "NEXT_ACTION",
       companyName: application.jobLead.companyName,
       roleTitle: application.jobLead.roleTitle,
       stage: application.currentStage,
       reason: nextAction,
       timeLabel: application.nextActionDueAt ? "行动截止" : "最近更新",
+      displayTime: application.nextActionDueAt ? `截至 ${formatDashboardDateTime(application.nextActionDueAt)}` : "待跟进",
       timeAt: application.nextActionDueAt ?? application.updatedAt,
       priority: 3
     });
@@ -243,6 +266,10 @@ export async function getDashboardData() {
     calendarEvents: uniqueCriticalEvents(calendarEvents).slice(0, 12),
     progress
   };
+}
+
+function formatDashboardDateTime(value: Date) {
+  return `${value.getMonth() + 1}/${value.getDate()} ${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
 }
 
 export async function getJobs() {
