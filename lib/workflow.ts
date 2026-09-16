@@ -25,6 +25,7 @@ export type DashboardWorkflowItem = WorkflowItem & {
   sourceType: "EVENT" | "NEXT_ACTION";
   eventId?: string;
   displayTime: string;
+  taskStatus: "ACTIVE" | "COMPLETED";
 };
 
 const dayMs = 24 * 60 * 60 * 1000;

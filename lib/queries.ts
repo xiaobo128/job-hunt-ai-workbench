@@ -1,18 +1,20 @@
 import { prisma, withDbRetry } from "@/lib/db";
 import { requireSessionUser } from "@/lib/session";
-import { getRemainingDays, sortWorkflowItems, uniqueCriticalEvents, type DashboardWorkflowItem } from "@/lib/workflow";
+import { getRemainingDays, uniqueCriticalEvents, type DashboardWorkflowItem } from "@/lib/workflow";
 import { formatDashboardEventTime, getDashboardEventDueAt } from "@/lib/event-time";
 
 export async function getDashboardData() {
   const user = await requireSessionUser();
   const now = new Date();
-  const windowEnd = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const windowEnd = new Date(todayStart.getFullYear(), todayStart.getMonth(), todayStart.getDate() + 8);
+  const completedWindowStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), todayStart.getDate() - 2);
   const activeApplicationWhere = {
     currentStage: { not: "CLOSED" as const },
     jobLead: { ownerId: user.id, status: { not: "CLOSED" as const } }
   };
 
-  const [applications, deadlineEvents, scheduleEvents, recentEvents, calendarEvents] = await withDbRetry("getDashboardData", () =>
+  const [applications, deadlineEvents, scheduleEvents, recentEvents, calendarEvents, completedEvents] = await withDbRetry("getDashboardData", () =>
     Promise.all([
         prisma.application.findMany({
           where: activeApplicationWhere,
@@ -142,6 +144,32 @@ export async function getDashboardData() {
             application: { select: { jobLead: { select: { id: true, companyName: true, roleTitle: true } } } }
           },
           orderBy: [{ createdAt: "asc" }, { id: "asc" }]
+        }),
+        prisma.event.findMany({
+          where: {
+            eventType: { in: ["DEADLINE", "ASSESSMENT", "INTERVIEW"] },
+            status: "COMPLETED",
+            application: activeApplicationWhere
+          },
+          select: {
+            id: true,
+            applicationId: true,
+            eventType: true,
+            eventTime: true,
+            windowStartAt: true,
+            deadlineAt: true,
+            receivedAt: true,
+            relativeValidityMinutes: true,
+            status: true,
+            createdAt: true,
+            application: {
+              select: {
+                currentStage: true,
+                jobLead: { select: { companyName: true, roleTitle: true } }
+              }
+            }
+          },
+          orderBy: [{ eventTime: "desc" }, { id: "desc" }]
         })
       ])
   );
@@ -168,7 +196,6 @@ export async function getDashboardData() {
   }
 
   const todayActionItems: DashboardWorkflowItem[] = [];
-  const deadlineActionJobIds = new Set<string>();
   const unappliedStages = new Set(["INTERESTED", "READY_TO_APPLY"]);
 
   for (const event of uniqueCriticalEvents(deadlineEvents)) {
@@ -176,18 +203,15 @@ export async function getDashboardData() {
     const dueAt = getDashboardEventDueAt(event);
     if (
       !dueAt ||
-      dueAt < now ||
-      dueAt > windowEnd ||
+      dueAt < todayStart ||
+      dueAt >= windowEnd ||
       event.application.appliedAt ||
       !unappliedStages.has(event.application.currentStage)
     ) {
       continue;
     }
 
-    if (deadlineActionJobIds.has(job.id)) continue;
-
     const remainingDays = getRemainingDays(dueAt, now);
-    deadlineActionJobIds.add(job.id);
     todayActionItems.push({
       id: `deadline:${job.id}`,
       href: `/notifications/${event.applicationId}`,
@@ -201,13 +225,14 @@ export async function getDashboardData() {
       timeLabel: "截止时间",
       displayTime: formatDashboardEventTime(event),
       timeAt: dueAt,
-      priority: 1
+      priority: 1,
+      taskStatus: "ACTIVE"
     });
   }
 
   for (const event of uniqueCriticalEvents(scheduleEvents)) {
     const dueAt = getDashboardEventDueAt(event);
-    if (!dueAt || dueAt < now || dueAt > windowEnd) continue;
+    if (!dueAt || dueAt < todayStart || dueAt >= windowEnd) continue;
 
     const job = event.application.jobLead;
     todayActionItems.push({
@@ -223,13 +248,16 @@ export async function getDashboardData() {
       timeLabel: "安排时间",
       displayTime: formatDashboardEventTime(event),
       timeAt: dueAt,
-      priority: 2
+      priority: 2,
+      taskStatus: "ACTIVE"
     });
   }
 
   for (const application of applications) {
     const nextAction = application.nextAction?.trim();
     if (!nextAction) continue;
+    const nextActionAt = application.nextActionDueAt ?? application.updatedAt;
+    if (nextActionAt < todayStart || nextActionAt >= windowEnd) continue;
 
     todayActionItems.push({
       id: `next-action:${application.id}`,
@@ -242,8 +270,32 @@ export async function getDashboardData() {
       reason: nextAction,
       timeLabel: application.nextActionDueAt ? "行动截止" : "最近更新",
       displayTime: application.nextActionDueAt ? `截至 ${formatDashboardDateTime(application.nextActionDueAt)}` : "待跟进",
-      timeAt: application.nextActionDueAt ?? application.updatedAt,
-      priority: 3
+      timeAt: nextActionAt,
+      priority: 3,
+      taskStatus: "ACTIVE"
+    });
+  }
+
+  for (const event of uniqueCriticalEvents(completedEvents)) {
+    const scheduledAt = getDashboardEventDueAt(event);
+    if (!scheduledAt || scheduledAt < completedWindowStart || scheduledAt >= windowEnd) continue;
+
+    const job = event.application.jobLead;
+    todayActionItems.push({
+      id: `completed:${event.id}`,
+      href: `/notifications/${event.applicationId}`,
+      applicationId: event.applicationId,
+      sourceType: "EVENT",
+      eventId: event.id,
+      companyName: job.companyName,
+      roleTitle: job.roleTitle,
+      stage: event.application.currentStage,
+      reason: event.eventType === "INTERVIEW" ? "已完成面试" : event.eventType === "ASSESSMENT" ? "已完成笔试 / 测评" : "已完成截止事项",
+      timeLabel: "已完成",
+      displayTime: "已完成",
+      timeAt: scheduledAt,
+      priority: 4,
+      taskStatus: "COMPLETED"
     });
   }
 
@@ -268,10 +320,19 @@ export async function getDashboardData() {
     upcomingDeadlineJobs,
     upcomingScheduleEvents: uniqueCriticalEvents(scheduleEvents).slice(0, 10),
     recentTimelineEvents,
-    todayActionItems: sortWorkflowItems(todayActionItems).slice(0, 10),
+    todayActionItems: sortRecentTaskItems(todayActionItems),
     calendarEvents,
     progress
   };
+}
+
+function sortRecentTaskItems(items: DashboardWorkflowItem[]) {
+  return [...items].sort((left, right) => {
+    if (left.taskStatus !== right.taskStatus) return left.taskStatus === "ACTIVE" ? -1 : 1;
+    if (left.taskStatus === "COMPLETED") return right.timeAt.getTime() - left.timeAt.getTime();
+    if (left.timeAt.getTime() !== right.timeAt.getTime()) return left.timeAt.getTime() - right.timeAt.getTime();
+    return left.id.localeCompare(right.id);
+  });
 }
 
 function formatDashboardDateTime(value: Date) {
