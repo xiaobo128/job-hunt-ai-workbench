@@ -7,8 +7,6 @@ export async function getDashboardData() {
   const user = await requireSessionUser();
   const now = new Date();
   const windowEnd = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   const activeApplicationWhere = {
     currentStage: { not: "CLOSED" as const },
     jobLead: { ownerId: user.id, status: { not: "CLOSED" as const } }
@@ -120,22 +118,30 @@ export async function getDashboardData() {
         }),
         prisma.event.findMany({
           where: {
-            eventType: { in: ["ASSESSMENT", "INTERVIEW"] },
-            eventTime: { gte: monthStart, lt: monthEnd },
             status: { not: "IGNORED" },
-            application: activeApplicationWhere
+            application: activeApplicationWhere,
+            OR: [
+              { eventTime: { not: null } },
+              { windowStartAt: { not: null } },
+              { deadlineAt: { not: null } },
+              { receivedAt: { not: null }, relativeValidityMinutes: { not: null } }
+            ]
           },
           select: {
             id: true,
             applicationId: true,
             eventType: true,
             eventTime: true,
+            windowStartAt: true,
+            deadlineAt: true,
+            receivedAt: true,
+            relativeValidityMinutes: true,
             status: true,
             createdAt: true,
             title: true,
             application: { select: { jobLead: { select: { id: true, companyName: true, roleTitle: true } } } }
           },
-          orderBy: [{ eventTime: "asc" }, { id: "asc" }]
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }]
         })
       ])
   );
@@ -263,7 +269,7 @@ export async function getDashboardData() {
     upcomingScheduleEvents: uniqueCriticalEvents(scheduleEvents).slice(0, 10),
     recentTimelineEvents,
     todayActionItems: sortWorkflowItems(todayActionItems).slice(0, 10),
-    calendarEvents: uniqueCriticalEvents(calendarEvents).slice(0, 12),
+    calendarEvents,
     progress
   };
 }

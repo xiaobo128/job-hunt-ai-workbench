@@ -1,13 +1,27 @@
 import Link from "next/link";
 import { PageShell } from "@/components/app-shell";
 import { DashboardActionItems } from "@/components/dashboard-action-items";
+import { DashboardCalendar, type CalendarEvent } from "@/components/dashboard-calendar";
 import { Panel } from "@/components/cards";
 import { getDashboardData } from "@/lib/queries";
 
 export default async function DashboardPage() {
   const { todayActionItems, calendarEvents, progress } =
     await getDashboardData();
-  const monthLabel = new Intl.DateTimeFormat("zh-CN", { month: "long" }).format(new Date());
+  const calendarInitialDate = new Date().toISOString();
+  const serializedCalendarEvents: CalendarEvent[] = calendarEvents.map((event) => ({
+    id: event.id,
+    applicationId: event.applicationId,
+    eventType: event.eventType,
+    status: event.status,
+    title: event.title,
+    eventTime: event.eventTime?.toISOString() ?? null,
+    windowStartAt: event.windowStartAt?.toISOString() ?? null,
+    deadlineAt: event.deadlineAt?.toISOString() ?? null,
+    receivedAt: event.receivedAt?.toISOString() ?? null,
+    relativeValidityMinutes: event.relativeValidityMinutes,
+    companyName: event.application.jobLead.companyName
+  }));
 
   return (
     <PageShell
@@ -18,15 +32,8 @@ export default async function DashboardPage() {
       <DashboardActionItems initialItems={todayActionItems} />
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_.8fr]">
-        <Panel title="日历" subtitle={monthLabel}>
-          <div className="space-y-1">
-            {calendarEvents.length === 0 ? <EmptyState>本月暂无测评或面试安排。</EmptyState> : calendarEvents.map((event) => (
-              <Link key={event.id} href={`/notifications/${event.applicationId}`} className="flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-panel">
-                <span className="w-8 text-sm font-semibold tabular-nums text-accent">{event.eventTime?.getDate()}</span>
-                <span className="min-w-0 truncate text-sm text-slate-700">{event.application.jobLead.companyName} · {event.title || (event.eventType === "INTERVIEW" ? "面试" : "测评")}</span>
-              </Link>
-            ))}
-          </div>
+        <Panel title="日历">
+          <DashboardCalendar initialDate={calendarInitialDate} events={serializedCalendarEvents} />
         </Panel>
 
         <Panel title="求职进度">
@@ -41,10 +48,6 @@ export default async function DashboardPage() {
       </div>
     </PageShell>
   );
-}
-
-function EmptyState({ children }: { children: React.ReactNode }) {
-  return <div className="rounded-2xl bg-panel p-4 text-sm text-slate-500">{children}</div>;
 }
 
 function ProgressItem({ label, value }: { label: string; value: number }) {
