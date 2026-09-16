@@ -57,6 +57,7 @@ export default async function ResumeParseReviewPage({
   return (
     <PageShell
       title={isEditable ? "确认结构化简历" : "查看结构化简历"}
+      className="xl:grid xl:h-[calc(100dvh-2rem)] xl:grid-rows-[auto_minmax(0,1fr)] xl:gap-4 xl:space-y-0"
       description={
         isEditable
           ? "请核对原始文件和系统提取的字段。先保存修改，再确认该结构化版本。"
@@ -70,8 +71,8 @@ export default async function ResumeParseReviewPage({
         </a>
       }
     >
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <section className="rounded-3xl border border-line bg-white p-4 shadow-card">
+      <div className="grid gap-5 xl:min-h-0 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+        <section className="rounded-3xl border border-line bg-white p-4 shadow-card xl:sticky xl:top-0 xl:flex xl:h-full xl:min-h-0 xl:flex-col">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h2 className="font-semibold text-ink">原始文件</h2>
@@ -88,7 +89,7 @@ export default async function ResumeParseReviewPage({
             <iframe
               title={`${parse.resume.title} 原始简历`}
               src={`/api/resume-assets/${parse.resumeAsset.id}/download?disposition=inline`}
-              className="mt-4 h-[720px] w-full rounded-2xl border border-line bg-panel"
+              className="mt-4 h-[720px] w-full rounded-2xl border border-line bg-panel xl:h-auto xl:min-h-0 xl:flex-1"
             />
           ) : (
             <div className="mt-4 rounded-2xl bg-panel p-5 text-sm leading-6 text-slate-600">
@@ -96,12 +97,14 @@ export default async function ResumeParseReviewPage({
             </div>
           )}
         </section>
-        <ResumeParseReviewForm
-          resumeId={resumeId}
-          parseId={parse.id}
-          status={parse.status}
-          document={parsedDocument.data}
-        />
+        <div className="xl:min-h-0 xl:overflow-y-auto xl:pr-1">
+          <ResumeParseReviewForm
+            resumeId={resumeId}
+            parseId={parse.id}
+            status={parse.status}
+            document={parsedDocument.data}
+          />
+        </div>
       </div>
     </PageShell>
   );
