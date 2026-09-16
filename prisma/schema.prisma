@@ -180,6 +180,7 @@ model Application {
   nextAction        String?
   nextActionDueAt   DateTime?
   note              String?
+  displayOrder      Int?
   updatedAt         DateTime         @updatedAt
   createdAt         DateTime         @default(now())
   jobLead           JobLead          @relation(fields: [jobLeadId], references: [id], onDelete: Cascade)

@@ -357,6 +357,26 @@ export async function updateEventStatus(eventId: string, status: EventStatus) {
   revalidatePath(`/jobs/${event.application.jobLeadId}`);
 }
 
+export async function reorderNotificationApplications(applicationIds: string[]) {
+  const user = await requireSessionUser();
+
+  if (!Array.isArray(applicationIds) || applicationIds.length !== new Set(applicationIds).size || applicationIds.some((id) => !id)) {
+    throw new Error("Invalid application order");
+  }
+
+  const applications = await prisma.application.findMany({
+    where: { id: { in: applicationIds }, jobLead: { ownerId: user.id } },
+    select: { id: true }
+  });
+
+  if (applications.length !== applicationIds.length) {
+    throw new Error("Application not found");
+  }
+
+  await prisma.$transaction(applicationIds.map((id, index) => prisma.application.update({ where: { id }, data: { displayOrder: index } })));
+  revalidatePath("/notifications");
+}
+
 export async function closeDashboardApplication(applicationId: string) {
   const formData = new FormData();
   formData.set("applicationId", applicationId);
