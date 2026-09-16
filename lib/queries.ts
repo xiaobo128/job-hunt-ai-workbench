@@ -2,6 +2,7 @@ import { prisma, withDbRetry } from "@/lib/db";
 import { requireSessionUser } from "@/lib/session";
 import { getRemainingDays, uniqueCriticalEvents, type DashboardWorkflowItem } from "@/lib/workflow";
 import { formatDashboardEventTime, getDashboardEventDueAt } from "@/lib/event-time";
+import { assessmentEventTypes, interviewEventTypes, isInterviewEventType } from "@/lib/event-types";
 
 export async function getDashboardData() {
   const user = await requireSessionUser();
@@ -63,7 +64,7 @@ export async function getDashboardData() {
         }),
         prisma.event.findMany({
           where: {
-            eventType: { in: ["ASSESSMENT", "INTERVIEW"] },
+            eventType: { in: [...assessmentEventTypes, ...interviewEventTypes] },
             status: "ACTIVE",
             application: activeApplicationWhere
           },
@@ -147,7 +148,7 @@ export async function getDashboardData() {
         }),
         prisma.event.findMany({
           where: {
-            eventType: { in: ["DEADLINE", "ASSESSMENT", "INTERVIEW"] },
+            eventType: { in: ["DEADLINE", ...assessmentEventTypes, ...interviewEventTypes] },
             status: "COMPLETED",
             application: activeApplicationWhere
           },
@@ -244,7 +245,7 @@ export async function getDashboardData() {
       companyName: job.companyName,
       roleTitle: job.roleTitle,
       stage: event.application.currentStage,
-      reason: event.eventType === "INTERVIEW" ? "即将参加面试" : "即将参加笔试",
+      reason: isInterviewEventType(event.eventType) ? "即将参加面试" : "即将参加笔试 / 测评",
       timeLabel: "安排时间",
       displayTime: formatDashboardEventTime(event),
       timeAt: dueAt,
@@ -290,7 +291,7 @@ export async function getDashboardData() {
       companyName: job.companyName,
       roleTitle: job.roleTitle,
       stage: event.application.currentStage,
-      reason: event.eventType === "INTERVIEW" ? "已完成面试" : event.eventType === "ASSESSMENT" ? "已完成笔试 / 测评" : "已完成截止事项",
+      reason: isInterviewEventType(event.eventType) ? "已完成面试" : "已完成笔试 / 测评",
       timeLabel: "已完成",
       displayTime: "已完成",
       timeAt: scheduledAt,

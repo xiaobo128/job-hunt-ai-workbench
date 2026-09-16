@@ -6,6 +6,7 @@ import { useFormStatus } from "react-dom";
 import { createNotificationEvent } from "@/app/actions";
 import { EventTimeFields } from "@/components/event-time-summary";
 import { useRouter } from "next/navigation";
+import { notificationEventTypeOptions } from "@/lib/event-types";
 
 const initialState = { status: "idle" as const };
 
@@ -84,12 +85,7 @@ export function AddNotificationDialog({
                         defaultValue="NOTE"
                         className="mt-2 w-full rounded-2xl border border-line bg-panel px-4 py-3 outline-none"
                       >
-                        <option value="NOTE">备注</option>
-                        <option value="ASSESSMENT">测评</option>
-                        <option value="INTERVIEW">面试</option>
-                        <option value="OFFER">录用</option>
-                        <option value="REJECTION">拒绝</option>
-                        <option value="DEADLINE">截止时间</option>
+                        {notificationEventTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                       </select>
                     </label>
 

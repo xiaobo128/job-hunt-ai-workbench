@@ -44,6 +44,7 @@ import { redirect } from "next/navigation";
 import { saveUpload } from "@/lib/storage";
 import { generateApiTokenValue, sha256 } from "@/lib/agent-auth";
 import { triggerOutboundWebhook } from "@/lib/agent-webhooks";
+import { isAssessmentEventType, isInterviewEventType } from "@/lib/event-types";
 
 async function updateEnvVariable(variable: string, value: string) {
   const envPath = path.join(process.cwd(), ".env.local");
@@ -1960,9 +1961,9 @@ function sanitizeFileName(value: string) {
 }
 
 function mapEventTypeToStage(eventType: EventType) {
-  return eventType === "INTERVIEW"
+  return isInterviewEventType(eventType)
     ? ApplicationStage.FIRST_INTERVIEW
-    : eventType === "ASSESSMENT"
+    : isAssessmentEventType(eventType)
       ? ApplicationStage.ASSESSMENT
       : eventType === "OFFER"
         ? ApplicationStage.OFFER

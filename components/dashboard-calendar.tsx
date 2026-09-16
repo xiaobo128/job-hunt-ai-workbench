@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { getEventTypeLabel, isAssessmentEventType, isInterviewEventType } from "@/lib/event-types";
 
 export type CalendarEvent = {
   id: string;
@@ -105,8 +106,8 @@ function toCalendarEntry(event: CalendarEvent): CalendarEntry | null {
 
 function dotClass(event: CalendarEntry) {
   if (event.status === "COMPLETED") return "bg-emerald-300";
-  if (event.eventType === "INTERVIEW") return "bg-violet-500";
-  if (event.eventType === "ASSESSMENT") return "bg-amber-500";
+  if (isInterviewEventType(event.eventType)) return "bg-violet-500";
+  if (isAssessmentEventType(event.eventType)) return "bg-amber-500";
   if (event.eventType === "DEADLINE") return "bg-rose-500";
   return "bg-slate-400";
 }
@@ -129,8 +130,8 @@ function eventTitle(event: CalendarEntry) {
 }
 
 function eventTypeLabel(eventType: string) {
-  if (eventType === "INTERVIEW") return "面试";
-  if (eventType === "ASSESSMENT") return "笔试 / 测评";
+  if (isInterviewEventType(eventType)) return getEventTypeLabel(eventType);
+  if (isAssessmentEventType(eventType)) return getEventTypeLabel(eventType);
   if (eventType === "DEADLINE") return "截止提醒";
   return "事项";
 }

@@ -94,8 +94,10 @@ const tailorDraftSchema = z.object({
   draftText: z.string()
 });
 
+const notificationEventTypes = ["NOTE", "ASSESSMENT", "WRITTEN_TEST", "AI_INTERVIEW", "FIRST_INTERVIEW", "SECOND_INTERVIEW", "THIRD_INTERVIEW", "INTERVIEW", "OFFER", "REJECTION", "DEADLINE"] as const;
+
 const notificationSchema = z.object({
-  eventType: z.enum(["NOTE", "ASSESSMENT", "INTERVIEW", "OFFER", "REJECTION", "DEADLINE"]),
+  eventType: z.enum(notificationEventTypes),
   eventTime: z.string().nullable(),
   requirements: z.array(z.string()).default([]),
   summary: z.string()
@@ -579,7 +581,7 @@ function zodToJsonSchema(name: string) {
     properties: {
       eventType: {
         type: "string",
-        enum: ["NOTE", "ASSESSMENT", "INTERVIEW", "OFFER", "REJECTION", "DEADLINE"]
+        enum: notificationEventTypes
       },
       eventTime: { type: ["string", "null"] },
       requirements: { type: "array", items: { type: "string" } },
@@ -991,7 +993,7 @@ export async function parseNotification(input: {
         schema: notificationSchema,
         schemaName: "notification_parse",
         systemPrompt:
-          "你是一个求职通知解析助手。请从邮件正文、聊天通知或截图中提取事件类型、时间、要求和一句简洁摘要。不确定的时间返回 null。",
+          "你是一个求职通知解析助手。请从邮件正文、聊天通知或截图中提取事件类型、时间、要求和一句简洁摘要。不确定的时间返回 null。事件类型规则：笔试使用 WRITTEN_TEST；AI面或 AI面试使用 AI_INTERVIEW；一面或第一轮面试使用 FIRST_INTERVIEW；二面或第二轮面试使用 SECOND_INTERVIEW；三面或第三轮面试使用 THIRD_INTERVIEW；泛化的面试邀请且无法判断轮次时使用 INTERVIEW，绝不猜测轮次；测评使用 ASSESSMENT。",
         userPrompt: `请解析下面的通知内容，并提炼成事件记录。\n\n通知原文:\n${input.content}`,
         imagePath: input.imagePath,
         imageMimeType: input.imageMimeType,
@@ -1109,7 +1111,21 @@ function buildDraftResume(input: {
 }
 
 function fallbackNotification(content: string) {
-  const type = content.includes("面试") ? "INTERVIEW" : content.includes("笔试") ? "ASSESSMENT" : "NOTE";
+  const type = /AI\s*面(?:试)?/i.test(content)
+    ? "AI_INTERVIEW"
+    : /(?:一面|第一轮面试)/.test(content)
+      ? "FIRST_INTERVIEW"
+      : /(?:二面|第二轮面试)/.test(content)
+        ? "SECOND_INTERVIEW"
+        : /(?:三面|第三轮面试)/.test(content)
+          ? "THIRD_INTERVIEW"
+          : content.includes("笔试")
+            ? "WRITTEN_TEST"
+            : content.includes("测评")
+              ? "ASSESSMENT"
+              : content.includes("面试")
+                ? "INTERVIEW"
+                : "NOTE";
   const dateMatch = /\d{4}[/-]\d{1,2}[/-]\d{1,2}(?:\s+\d{1,2}:\d{2})?/.exec(content);
 
   return {
