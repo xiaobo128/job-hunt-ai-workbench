@@ -2,6 +2,9 @@ import { readFile } from "fs/promises";
 import { z } from "zod";
 import { findResumeAnalysisEvidenceFailure, ResumeAnalysisSchema, type ResumeAnalysis } from "@/lib/resume-analysis";
 import type { ResumeDocument } from "@/lib/resume-parsing/core";
+import { resolveAiSettings, type UserAiSettings } from "@/lib/ai-settings";
+
+export type { UserAiSettings } from "@/lib/ai-settings";
 
 const importedJobSchema = z.object({
   sourceType: z.enum(["LINK", "TEXT", "SCREENSHOT", "MANUAL"]),
@@ -21,14 +24,6 @@ const importedJobSchema = z.object({
 
 type ImportedJob = z.infer<typeof importedJobSchema>;
 type AIProvider = "openai" | "local";
-export type UserAiSettings = {
-  provider?: string | null;
-  apiKey?: string | null;
-  apiBaseUrl?: string | null;
-  forwardHost?: string | null;
-  model?: string | null;
-  visionModel?: string | null;
-};
 type AIResult<T> = {
   provider: AIProvider;
   note: string;
@@ -115,8 +110,9 @@ const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/responses";
 const OPENAI_REQUEST_TIMEOUT_MS = 45000;
 
 function resolveResponsesUrl(settings?: UserAiSettings) {
-  const configured = (settings?.apiBaseUrl || "").trim();
-  const provider = (settings?.provider || "").trim().toLowerCase();
+  const effective = resolveAiSettings(settings);
+  const configured = effective.apiBaseUrl;
+  const provider = effective.provider.toLowerCase();
 
   if (configured) {
     return configured.endsWith("/responses") ? configured : `${configured.replace(/\/$/, "")}/responses`;
@@ -126,7 +122,7 @@ function resolveResponsesUrl(settings?: UserAiSettings) {
 }
 
 function getApiKey(settings?: UserAiSettings) {
-  return settings?.apiKey?.trim() || process.env.OPENAI_API_KEY || "";
+  return resolveAiSettings(settings).apiKey;
 }
 
 function hasOpenAI(settings?: UserAiSettings) {
@@ -134,15 +130,15 @@ function hasOpenAI(settings?: UserAiSettings) {
 }
 
 function getTextModel(settings?: UserAiSettings) {
-  return settings?.model?.trim() || process.env.OPENAI_MODEL || "gpt-4.1-mini";
+  return resolveAiSettings(settings).model;
 }
 
 function getVisionModel(settings?: UserAiSettings) {
-  return settings?.visionModel?.trim() || process.env.OPENAI_VISION_MODEL || getTextModel(settings);
+  return resolveAiSettings(settings).visionModel;
 }
 
 function getForwardHost(settings?: UserAiSettings) {
-  return settings?.forwardHost?.trim() || "";
+  return resolveAiSettings(settings).forwardHost;
 }
 
 function createRequestTimeoutSignal(timeoutMs: number) {
@@ -288,6 +284,7 @@ async function createStructuredResponse<T>({
   settings?: UserAiSettings;
 }) {
   const apiKey = getApiKey(settings);
+  const effectiveSettings = resolveAiSettings(settings);
 
   if (!apiKey) {
     throw new StructuredResponseError("MISSING_API_KEY");
@@ -317,7 +314,7 @@ async function createStructuredResponse<T>({
             "X-Forwarded-Host": getForwardHost(settings)
           }
         : {}),
-      ...(settings?.provider?.toLowerCase() === "openrouter"
+      ...(effectiveSettings.provider.toLowerCase() === "openrouter"
         ? {
             "HTTP-Referer": process.env.APP_URL || "http://127.0.0.1:3000",
             "X-Title": "job-hunt-ai-workbench"
@@ -601,7 +598,7 @@ export async function extractResumeTextFromImage(input: {
   if (!hasOpenAI(input.settings)) {
     return {
       provider: "local" as AIProvider,
-      note: "未配置 OPENAI_API_KEY，当前无法对图片简历执行 OCR。",
+      note: "AI 配置缺失：当前无法对图片简历执行识别。",
       data: { extractedText: "" }
     };
   }
@@ -655,7 +652,7 @@ export async function normalizeResumeExtraction(input: {
   if (!hasOpenAI(input.settings)) {
     return {
       provider: "local" as AIProvider,
-      note: "未配置 OPENAI_API_KEY，当前仅使用本地布局顺序兜底，不执行正文融合校正。",
+      note: "AI 配置缺失：当前仅使用本地布局顺序，不执行正文融合校正。",
       data: { extractedText: layoutText || nativeText }
     };
   }
@@ -696,7 +693,7 @@ export async function extractJobTextFromImage(input: {
   if (!hasOpenAI(input.settings)) {
     return {
       provider: "local" as AIProvider,
-      note: "未配置 OPENAI_API_KEY，当前无法对岗位截图执行 OCR。",
+      note: "AI 配置缺失：当前无法对岗位截图执行识别。",
       data: { extractedText: "" }
     };
   }
@@ -785,8 +782,8 @@ export async function parseJobLead(input: {
     provider: "local" as AIProvider,
     note:
       input.sourceType === "SCREENSHOT"
-        ? "未配置 OPENAI_API_KEY，当前使用本地规则兜底。本地模式不会自动 OCR 截图，请手动补充关键岗位信息。"
-        : "未配置 OPENAI_API_KEY，当前使用本地规则解析。",
+        ? "AI 配置缺失：当前使用本地规则兜底，无法自动识别截图文字，请手动补充关键岗位信息。"
+        : "AI 配置缺失：当前使用本地规则解析。",
     data: fallbackParseJobLead(input.rawContent, input)
   };
 }
@@ -840,7 +837,7 @@ ${input.resumeText}`,
 
   return {
     provider: "local" as AIProvider,
-    note: input.mode === "advice" ? "未配置 OPENAI_API_KEY，当前使用本地分析模板。" : "未配置 OPENAI_API_KEY，当前使用本地草稿模板。",
+    note: input.mode === "advice" ? "AI 配置缺失：当前使用本地分析模板。" : "AI 配置缺失：当前使用本地草稿模板。",
     data: fallbackTailorResume(input)
   };
 }
@@ -973,7 +970,7 @@ ${input.currentDraftText}`,
 
   return {
     provider: "local" as AIProvider,
-    note: "未配置 OPENAI_API_KEY，当前保留原草稿。",
+    note: "AI 配置缺失：当前保留原草稿。",
     data: {
       summary: "当前没有可用的在线模型，本次保留原草稿内容。",
       draftTitle: input.currentDraftTitle,
@@ -1018,7 +1015,7 @@ export async function parseNotification(input: {
 
   return {
     provider: "local" as AIProvider,
-    note: "未配置 OPENAI_API_KEY，当前使用本地规则解析通知。",
+    note: "AI 配置缺失：当前使用本地规则解析通知。",
     data: fallbackNotification(input.content)
   };
 }

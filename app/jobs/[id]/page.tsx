@@ -9,6 +9,7 @@ import { JobDetailSubmitButton } from "@/components/job-detail-submit-button";
 import { JobStageProgress } from "@/components/job-stage-progress";
 import { AgentHandoffPanel } from "@/components/agent-handoff-panel";
 import { EventTimeSummary } from "@/components/event-time-summary";
+import { DeleteJobForm } from "@/components/delete-job-form";
 import { createAgentHandoffInput } from "@/lib/agent-handoff";
 import { getStageDisplayLabel, normalizeApplicationStage, stageOptions } from "@/lib/constants";
 import { prisma } from "@/lib/db";
@@ -308,6 +309,10 @@ export default async function JobDetailPage({
               ))}
             </div>
           )}
+        </Panel>
+
+        <Panel title="危险操作" subtitle="删除后会同时清理这条岗位的申请记录和相关事件，且无法恢复。">
+          <DeleteJobForm jobLeadId={job.id} redirectTo="/jobs" />
         </Panel>
       </div>
     </PageShell>

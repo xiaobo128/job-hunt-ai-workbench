@@ -1,5 +1,5 @@
 import path from "path";
-import type { UserAiSettings } from "@/lib/ai";
+import type { UserAiSettings } from "@/lib/ai-settings";
 import { normalizeResumeExtraction } from "@/lib/ai";
 import { readStoredFileBytes, saveUpload } from "@/lib/storage";
 

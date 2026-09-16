@@ -7,7 +7,7 @@ export function getRuntimeConfig() {
   const usesSqlite = DATABASE_URL.startsWith("file:");
   const usesHttpsAppUrl = APP_URL.startsWith("https://");
   const usesLocalAppUrl = APP_URL.startsWith("http://localhost");
-  const hasOpenAi = Boolean(process.env.OPENAI_API_KEY);
+  const hasOpenAi = Boolean(process.env.DEFAULT_AI_API_KEY || process.env.OPENAI_API_KEY);
   const hasBlobToken = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
   const hasResumeBlobToken = Boolean(process.env.RESUME_BLOB_READ_WRITE_TOKEN);
   const hasResumeBlobStoreId = Boolean(process.env.RESUME_BLOB_STORE_ID);
@@ -27,8 +27,13 @@ export function getRuntimeConfig() {
     },
     ai: {
       hasOpenAi,
-      model: process.env.OPENAI_MODEL || "gpt-4.1-mini",
-      visionModel: process.env.OPENAI_VISION_MODEL || process.env.OPENAI_MODEL || "gpt-4.1-mini"
+      model: process.env.DEFAULT_AI_MODEL || process.env.OPENAI_MODEL || "gpt-4.1-mini",
+      visionModel:
+        process.env.DEFAULT_AI_VISION_MODEL ||
+        process.env.OPENAI_VISION_MODEL ||
+        process.env.DEFAULT_AI_MODEL ||
+        process.env.OPENAI_MODEL ||
+        "gpt-4.1-mini"
     },
     deployment: {
       usesHttpsAppUrl,

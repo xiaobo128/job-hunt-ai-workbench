@@ -3,36 +3,43 @@ import { PageShell } from "@/components/app-shell";
 import { Panel } from "@/components/cards";
 import { updateAiSettings } from "@/app/actions";
 import { Callout, NoteBlock } from "../_components/account-sections";
+import { getAiSettingsDisplay } from "@/lib/ai-settings";
 import { requireSessionUser } from "@/lib/session";
 
 export default async function AccountAiPage() {
   const user = await requireSessionUser();
-  const effectiveProvider = user.aiProvider || "openai";
-  const effectiveApiBaseUrl = user.aiApiBaseUrl || "";
-  const effectiveForwardHost = user.aiForwardHost || "";
-  const effectiveModel = user.aiModel || process.env.OPENAI_MODEL || "gpt-4.1-mini";
-  const effectiveVisionModel = user.aiVisionModel || process.env.OPENAI_VISION_MODEL || effectiveModel;
-  const hasUserAiKey = Boolean(user.aiApiKey);
+  const aiStatus = getAiSettingsDisplay({
+    provider: user.aiProvider,
+    apiKey: user.aiApiKey,
+    apiBaseUrl: user.aiApiBaseUrl,
+    forwardHost: user.aiForwardHost,
+    model: user.aiModel,
+    visionModel: user.aiVisionModel
+  });
 
   return (
     <PageShell
       title="AI 模型设置"
-      description="设置岗位与通知解析使用的 AI 服务。"
+      description="默认可直接使用站点配置；也可以填写自己的服务覆盖它。"
       action={
         <Link href="/account" className="inline-flex rounded-2xl border border-line px-4 py-3 text-sm">
           返回设置首页
         </Link>
       }
     >
-      <Panel title="AI 配置" subtitle="这些设置仅用于你的账户。">
+      <Panel title="AI 配置" subtitle="你的自定义设置只会应用于自己的账户。">
         <div className="mb-5 space-y-4">
           <Callout
-            title="使用范围"
-            body="这些设置用于岗位解析和通知解析，并仅应用于你的账户。"
+            title={aiStatus.usesSiteDefault ? "当前使用站点默认 AI 配置" : aiStatus.hasUserApiKey ? "当前使用自己的 AI 配置" : "AI 配置状态"}
+            body={
+              aiStatus.isConfigured
+                ? `当前模型：${aiStatus.model}${aiStatus.baseUrlHost ? ` · ${aiStatus.baseUrlHost}` : ""}。API Key 不会在此页面显示。`
+                : "尚未配置可用的 AI 服务。请填写自己的 API Key，或请站点管理员配置默认 AI 服务。"
+            }
           />
           <Callout
-            title="普通用户怎么填"
-            body="如果你只是想把站内 AI 功能先用起来，通常只需要选择服务商、填写文本模型，并粘贴对应的 API Key。只有在你使用代理、中转服务或兼容接口时，才需要再填写 API Base URL 和转发 Host。"
+            title="使用自己的配置（可选）"
+            body="填写自己的 API Key 后，岗位和通知解析会优先使用你的配置。只有使用代理、中转服务或兼容接口时，才需要填写 API Base URL 和转发 Host。"
           />
         </div>
 
@@ -42,9 +49,10 @@ export default async function AccountAiPage() {
               AI 服务商
               <select
                 name="aiProvider"
-                defaultValue={effectiveProvider}
+                defaultValue={user.aiProvider || ""}
                 className="mt-2 w-full rounded-2xl border border-line bg-panel px-4 py-3 outline-none"
               >
+                <option value="">使用站点默认</option>
                 <option value="openai">OpenAI</option>
                 <option value="openrouter">OpenRouter</option>
                 <option value="custom">自定义兼容接口</option>
@@ -58,12 +66,12 @@ export default async function AccountAiPage() {
               文本模型
               <input
                 name="aiModel"
-                defaultValue={effectiveModel}
+                defaultValue={user.aiModel || ""}
                 className="mt-2 w-full rounded-2xl border border-line bg-panel px-4 py-3 outline-none"
-                placeholder="例如：gpt-4.1-mini / openai/gpt-4.1-mini / deepseek-chat"
+                placeholder={`留空时使用默认模型（当前：${aiStatus.model}）`}
               />
               <span className="mt-2 block text-xs leading-5 text-slate-500">
-                这是岗位解析、通知理解和简历改写优先使用的主模型。大多数场景填一个稳定的通用文本模型就够了。
+                这是岗位解析和通知理解优先使用的主模型；留空时沿用站点默认模型。
               </span>
             </label>
           </div>
@@ -73,12 +81,12 @@ export default async function AccountAiPage() {
               视觉 / OCR 模型
               <input
                 name="aiVisionModel"
-                defaultValue={effectiveVisionModel}
+                defaultValue={user.aiVisionModel || ""}
                 className="mt-2 w-full rounded-2xl border border-line bg-panel px-4 py-3 outline-none"
-                placeholder="留空时默认跟随文本模型"
+                placeholder={`留空时使用默认视觉模型（当前：${aiStatus.visionModel}）`}
               />
               <span className="mt-2 block text-xs leading-5 text-slate-500">
-                只有在你需要处理图片、截图、扫描件或 OCR 提取时，这个字段才会明显影响结果。留空时会跟随上面的文本模型。
+                处理图片、截图或扫描件时会使用这个模型；留空时使用站点默认设置。
               </span>
             </label>
 
@@ -86,7 +94,7 @@ export default async function AccountAiPage() {
               API Base URL
               <input
                 name="aiApiBaseUrl"
-                defaultValue={effectiveApiBaseUrl}
+                defaultValue={user.aiApiBaseUrl || ""}
                 className="mt-2 w-full rounded-2xl border border-line bg-panel px-4 py-3 outline-none"
                 placeholder="例如：https://api.openai.com/v1 或 https://openrouter.ai/api/v1"
               />
@@ -101,7 +109,7 @@ export default async function AccountAiPage() {
               转发 Host
               <input
                 name="aiForwardHost"
-                defaultValue={effectiveForwardHost}
+                defaultValue={user.aiForwardHost || ""}
                 className="mt-2 w-full rounded-2xl border border-line bg-panel px-4 py-3 outline-none"
                 placeholder="可选。给代理或中转服务指定 Host，例如 api.openai.com"
               />
@@ -117,40 +125,42 @@ export default async function AccountAiPage() {
                 type="password"
                 name="aiApiKey"
                 className="mt-2 w-full rounded-2xl border border-line bg-panel px-4 py-3 outline-none"
-                placeholder={hasUserAiKey ? "已配置。只有在你想替换时才需要重新输入。" : "例如：sk-..."}
+                placeholder={aiStatus.hasUserApiKey ? "已配置。只有在想替换时才需重新输入。" : "可选：填写后仅对你生效"}
               />
               <span className="mt-2 block text-xs leading-5 text-slate-500">
-                这是你的服务凭证。保存后，站内 AI 功能会优先用这把密钥发起请求。更换服务商账号或怀疑密钥泄漏时，建议立即替换。
+                这是你的服务凭证。保存后，站内 AI 功能会优先使用它；站点默认密钥不会显示或写入你的账户。
               </span>
             </label>
           </div>
 
           <div className="rounded-2xl bg-panel px-4 py-3 text-sm text-slate-600">
-            当前生效：服务商 {effectiveProvider} | 文本模型 {effectiveModel} | 视觉模型 {effectiveVisionModel}
-            {effectiveForwardHost ? ` | 转发 Host ${effectiveForwardHost}` : ""}
+            当前生效：服务商 {aiStatus.provider} | 文本模型 {aiStatus.model} | 视觉模型 {aiStatus.visionModel}
+            {aiStatus.baseUrlHost ? ` | 接口地址 ${aiStatus.baseUrlHost}` : ""}
           </div>
 
           <div className="space-y-4">
             <NoteBlock title="API Key 状态">
-              {hasUserAiKey
-                ? "当前用户级 API Key 已保存。岗位解析、通知解析和简历微调会优先使用这套配置。"
-                : "尚未保存 API Key。保存后即可使用所选服务。"}
+              {aiStatus.hasUserApiKey
+                ? "当前已保存自己的 API Key，会优先用于站内 AI 功能。"
+                : aiStatus.usesSiteDefault
+                  ? "当前使用站点默认配置；无需为开始使用单独填写 API Key。"
+                  : "未发现可用的默认 AI 配置。请填写自己的 API Key。"}
             </NoteBlock>
             <NoteBlock title="使用建议">
-              普通用户先完成“服务商 + 文本模型 + API Key”即可。只有在你明确使用兼容网关、代理地址或企业中转时，才需要额外填写 API Base URL 和转发 Host。
+              使用默认配置即可开始。只有想使用自己的服务或兼容网关时，再填写上方字段。
             </NoteBlock>
           </div>
 
-          {!hasUserAiKey ? (
+          {!aiStatus.isConfigured ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              保存 API Key 后即可使用所选服务。
+              当前没有可用的 AI 配置。请填写自己的 API Key，或联系站点管理员配置默认 AI 服务。
             </div>
           ) : null}
 
           <div className="text-sm text-slate-600">
             <div className="font-medium text-ink">补充说明</div>
             <ul className="mt-3 space-y-2">
-              <li>- 这套配置仅应用于你的账户。</li>
+              <li>- 自己填写的配置仅应用于你的账户。</li>
               <li>- OpenRouter 和自定义服务默认按 OpenAI Responses API 兼容方式调用。</li>
               <li>- 请确认所选服务支持 OpenAI Responses API 兼容接口。</li>
             </ul>
@@ -158,7 +168,17 @@ export default async function AccountAiPage() {
 
           <div className="flex flex-wrap items-center gap-3">
             <button className="rounded-2xl bg-ink px-4 py-3 text-sm font-medium text-white">保存 AI 设置</button>
-            <span className="text-sm text-slate-500">保存后会立即影响岗位解析、通知解析和站内简历微调。</span>
+            {aiStatus.hasUserOverrides ? (
+              <button
+                type="submit"
+                name="clearAiSettings"
+                value="true"
+                className="rounded-2xl border border-line px-4 py-3 text-sm font-medium text-slate-700"
+              >
+                恢复站点默认配置
+              </button>
+            ) : null}
+            <span className="text-sm text-slate-500">保存后会立即影响岗位与通知解析。</span>
           </div>
         </form>
       </Panel>

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { UserAiSettings } from "@/lib/ai";
+import { resolveAiSettings, type UserAiSettings } from "@/lib/ai-settings";
 
 const importedJobSchema = z.object({
   sourceType: z.enum(["LINK", "TEXT", "SCREENSHOT", "MANUAL"]),
@@ -23,11 +23,11 @@ const OPENAI_API_URL = "https://api.openai.com/v1/responses";
 const OPENROUTER_API_URL = "https://openrouter.ai/api/v1/responses";
 
 function getApiKey(settings?: UserAiSettings) {
-  return settings?.apiKey?.trim() || process.env.OPENAI_API_KEY || "";
+  return resolveAiSettings(settings).apiKey;
 }
 
 function getForwardHost(settings?: UserAiSettings) {
-  return settings?.forwardHost?.trim() || "";
+  return resolveAiSettings(settings).forwardHost;
 }
 
 function hasOpenAI(settings?: UserAiSettings) {
@@ -43,8 +43,9 @@ function getErrorMessage(error: unknown) {
 }
 
 function resolveResponsesUrl(settings?: UserAiSettings) {
-  const configured = (settings?.apiBaseUrl || "").trim();
-  const provider = (settings?.provider || "").trim().toLowerCase();
+  const effective = resolveAiSettings(settings);
+  const configured = effective.apiBaseUrl;
+  const provider = effective.provider.toLowerCase();
 
   if (configured) {
     return configured.endsWith("/responses") ? configured : `${configured.replace(/\/$/, "")}/responses`;
@@ -132,9 +133,10 @@ async function createStructuredJobLeadResponse(input: {
   settings?: UserAiSettings;
 }) {
   const apiKey = getApiKey(input.settings);
+  const effectiveSettings = resolveAiSettings(input.settings);
 
   if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is missing");
+    throw new Error("AI configuration is missing");
   }
 
   const content: Array<Record<string, string>> = [
@@ -163,7 +165,7 @@ async function createStructuredJobLeadResponse(input: {
             "X-Forwarded-Host": getForwardHost(input.settings)
           }
         : {}),
-      ...(input.settings?.provider?.toLowerCase() === "openrouter"
+      ...(effectiveSettings.provider.toLowerCase() === "openrouter"
         ? {
             "HTTP-Referer": process.env.APP_URL || "http://127.0.0.1:3000",
             "X-Title": "job-hunt-ai-workbench"
@@ -171,7 +173,7 @@ async function createStructuredJobLeadResponse(input: {
         : {})
     },
     body: JSON.stringify({
-      model: input.settings?.visionModel?.trim() || input.settings?.model?.trim() || process.env.OPENAI_MODEL || "gpt-4.1-mini",
+      model: effectiveSettings.visionModel || effectiveSettings.model,
       input: [
         {
           role: "system",
@@ -298,8 +300,8 @@ export async function parseJobLeadDebug(input: {
     provider: "local" as const,
     note:
       input.sourceType === "SCREENSHOT"
-        ? "未配置 OPENAI_API_KEY，当前使用本地规则兜底。本地模式不会自动 OCR 截图，请手动补充关键岗位信息。"
-        : "未配置 OPENAI_API_KEY，当前使用本地规则解析。",
+        ? "AI 配置缺失：当前使用本地规则兜底，无法自动识别截图文字，请手动补充关键岗位信息。"
+        : "AI 配置缺失：当前使用本地规则解析。",
     data: fallbackParseJobLead(input.rawContent, input)
   };
 }

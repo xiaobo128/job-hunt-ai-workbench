@@ -521,22 +521,23 @@ export async function updateResumeNote(formData: FormData) {
 
 export async function updateAiSettings(formData: FormData) {
   const user = await requireSessionUser();
-  const provider = ((formData.get("aiProvider") as string | null) ?? "").trim() || "openai";
+  const clearAiSettings = formData.get("clearAiSettings") === "true";
+  const provider = ((formData.get("aiProvider") as string | null) ?? "").trim();
   const apiKey = ((formData.get("aiApiKey") as string | null) ?? "").trim();
   const apiBaseUrl = ((formData.get("aiApiBaseUrl") as string | null) ?? "").trim();
   const forwardHost = ((formData.get("aiForwardHost") as string | null) ?? "").trim();
-  const model = ((formData.get("aiModel") as string | null) ?? "").trim() || "gpt-4.1-mini";
-  const visionModel = ((formData.get("aiVisionModel") as string | null) ?? "").trim() || model;
+  const model = ((formData.get("aiModel") as string | null) ?? "").trim();
+  const visionModel = ((formData.get("aiVisionModel") as string | null) ?? "").trim();
 
   await prisma.user.update({
     where: { id: user.id },
     data: {
-      aiProvider: provider,
-      aiApiBaseUrl: apiBaseUrl || null,
-      aiForwardHost: forwardHost || null,
-      aiModel: model,
-      aiVisionModel: visionModel,
-      ...(apiKey ? { aiApiKey: apiKey } : {})
+      aiProvider: clearAiSettings ? null : provider || null,
+      aiApiBaseUrl: clearAiSettings ? null : apiBaseUrl || null,
+      aiForwardHost: clearAiSettings ? null : forwardHost || null,
+      aiModel: clearAiSettings ? null : model || null,
+      aiVisionModel: clearAiSettings ? null : visionModel || null,
+      ...(clearAiSettings ? { aiApiKey: null } : apiKey ? { aiApiKey: apiKey } : {})
     }
   });
 
@@ -1411,10 +1412,10 @@ export async function deleteJobLead(formData: FormData) {
   const jobLeadId = formData.get("jobLeadId") as string;
 
   if (!jobLeadId) {
-    return;
+    return { deleted: false };
   }
 
-  await prisma.jobLead.deleteMany({
+  const result = await prisma.jobLead.deleteMany({
     where: {
       id: jobLeadId,
       ownerId: user.id
@@ -1424,6 +1425,9 @@ export async function deleteJobLead(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/jobs");
   revalidatePath("/board");
+  revalidatePath(`/jobs/${jobLeadId}`);
+
+  return { deleted: result.count > 0 };
 }
 
 export async function updateBoardJobLead(formData: FormData) {
