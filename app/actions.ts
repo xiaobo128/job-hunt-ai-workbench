@@ -314,7 +314,7 @@ export async function updateApplicationStage(formData: FormData) {
       submissionChannel,
       nextAction,
       note,
-      appliedAt: stage === ApplicationStage.APPLIED ? new Date() : undefined
+      appliedAt: stage === ApplicationStage.APPLIED && application.currentStage !== ApplicationStage.APPLIED ? new Date() : undefined
     }
   });
 
