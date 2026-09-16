@@ -2168,7 +2168,9 @@ export async function updateNotificationEvent(formData: FormData) {
   const user = await requireSessionUser();
   const eventId = formData.get("eventId") as string;
   const title = ((formData.get("title") as string | null) ?? "").trim();
-  const content = ((formData.get("content") as string | null) ?? "").trim();
+  const requestedEventType = formData.get("eventType") as EventType | null;
+  const eventType = requestedEventType && Object.values(EventType).includes(requestedEventType) ? requestedEventType : null;
+  const contentInput = formData.get("content");
   const requirementsText = ((formData.get("requirementsText") as string | null) ?? "").trim();
   const parseDateField = (field: string) => {
     const value = ((formData.get(field) as string | null) ?? "").trim();
@@ -2187,7 +2189,7 @@ export async function updateNotificationEvent(formData: FormData) {
   const relativeValidityValueRaw = ((formData.get("relativeValidityValue") as string | null) ?? "").trim();
   const relativeValidityUnit = ((formData.get("relativeValidityUnit") as string | null) ?? "").trim();
 
-  if (!eventId || !title) {
+  if (!eventId || !title || !eventType) {
     return;
   }
 
@@ -2230,12 +2232,15 @@ export async function updateNotificationEvent(formData: FormData) {
     return;
   }
 
+  const existingDetails = safeEventDetails(event.detailsJson);
+  const content = typeof contentInput === "string" ? contentInput.trim() : existingDetails.content;
   const requirements = JSON.parse(multilineToJson(requirementsText)) as string[];
 
   await prisma.event.update({
     where: { id: event.id },
     data: {
       title,
+      eventType,
       eventTime: eventTime.value,
       windowStartAt: windowStartAt.value,
       deadlineAt: deadlineAt.value,
@@ -2251,5 +2256,15 @@ export async function updateNotificationEvent(formData: FormData) {
   revalidatePath("/");
   revalidatePath("/board");
   revalidatePath("/notifications");
+  revalidatePath(`/notifications/${event.applicationId}`);
   revalidatePath(`/jobs/${event.application.jobLeadId}`);
+}
+
+function safeEventDetails(detailsJson: string) {
+  try {
+    const parsed = JSON.parse(detailsJson) as { content?: unknown };
+    return { content: typeof parsed.content === "string" ? parsed.content : "" };
+  } catch {
+    return { content: "" };
+  }
 }
