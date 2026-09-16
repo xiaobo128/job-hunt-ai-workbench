@@ -1,116 +1,146 @@
-# AI 求职工作台 / AI 求职 CRM
+# 求职工作台
 
-一个面向求职者的 AI 工作台原型，用来把分散的岗位信息、简历版本、申请进度和通知事件统一管理起来。
+把岗位、投递进度、笔试面试通知和下一步行动放在一个地方管理。
 
-## 当前阶段
+## 在线体验
 
-当前版本严格围绕 MVP 推进，闭环是：
+[立即使用求职工作台](https://job-hunt-ai-workbench-3ec5dk9ev-m7826446-7831s-projects.vercel.app/login)
 
-`岗位导入 -> JD 解析 -> 简历微调 -> 申请看板 -> 通知补录`
 
-已实现：
+## 它解决什么问题
 
-- 多来源岗位导入：链接、文本、截图、PDF、手动补录
-- 导入后的确认流：新岗位默认进入“待确认解析”
-- JD 结构化结果展示与人工修正
-- 简历管理与岗位定向微调
-- 定制简历草稿生成与“另存为新简历”
-- 申请看板与阶段流转
-- 通知解析基础版
-- 多用户账号体系：注册、登录、登出、会话管理
-- 用户数据隔离
-- OpenAI 可选接入和本地降级
+秋招海投之后，麻烦往往不是投出一个岗位，而是记住每个机会走到了哪里：投了哪些公司、哪家要测评、面试在哪一天、下一步该做什么，以及同一个岗位的通知历史。
 
-暂未实现：
+求职工作台围绕这条流程工作：
 
-- 强 OCR
-- 完整 PDF / 图片简历解析
-- 自动投递
-- 邮箱 OAuth、浏览器插件、日历同步
+**记录机会 → 跟踪进度 → 管理通知 → 提醒下一步 → 为 Agent 提供上下文。**
 
-## 本地运行
+它不是一个要求你为每个岗位维护多份简历的工具，而是一个帮助你在高频投递期间不丢上下文的工作台。
 
-1. 安装依赖
+## 核心功能
+
+### 岗位工作台
+
+- 导入并集中查看岗位机会。
+- 使用列表快速扫读岗位、Base、进度和当前事项。
+- 使用看板快速浏览不同阶段，并直接拖动卡片更新阶段。
+- 点击岗位进入详情，查看岗位信息、申请进度和完整时间线。
+
+### 通知管理
+
+- 手动导入招聘邮件、聊天通知或附件内容，并关联到对应岗位。
+- 按公司和岗位机会聚合通知；同一公司的不同岗位不会混在一起。
+- 在通知时间线中查看、修正通知类型和时间信息。
+- 记录面试固定时间、测评开放窗口、最终 ddl，以及“收到通知后若干小时内有效”的链接限制。
+
+### 首页提醒
+
+- 查看今天优先需要处理的事项。
+- 查看临近截止的岗位、即将到来的笔试/面试和最近事件。
+- 已关闭的机会不会继续占据提醒。
+
+### 候选人资料
+
+- 保存当前主简历和必要的候选人资料。
+- 从已确认的简历解析结果中维护可复用的事实信息。
+- 不要求维护大量历史简历版本。
+
+### Agent 准备
+
+- 在岗位详情中选择准备任务，例如岗位匹配分析、笔试准备、面试准备、项目深挖或面试复盘。
+- 生成可复制的岗位上下文和提示词。
+- 将内容粘贴到 Windows Codex App 或其他你使用的 Agent 中继续准备。
+
+Agent 目前采用 Copy-to-Agent 方式：不会自动控制本地 App，也不会自动创建对话。
+
+## 3 分钟开始使用
+
+1. 注册或登录账号。
+2. 导入第一个岗位，补全公司、岗位和 Base 等基本信息。
+3. 在“我的求职”中更新投递进度；列表适合批量处理，看板适合快速移动阶段。
+4. 收到测评、笔试或面试通知后，进入“通知管理”导入并关联到对应岗位。
+5. 在岗位详情查看时间线和当前事项；重要时间请自行再次确认。
+6. 面试或笔试前，点击“用 Agent 准备”，复制上下文到你常用的 Agent。
+
+## 推荐使用方式
+
+### 每天
+
+- 打开首页查看今天要处理的事项和临近 deadline。
+- 批量投递后，更新岗位阶段或拖到对应看板列。
+
+### 收到通知后
+
+- 导入通知并关联岗位。
+- 检查通知类型、面试时间、测评窗口和 ddl；必要时手动修正。
+
+### 面试前后
+
+- 打开对应岗位，回看 JD、通知历史和当前事项。
+- 使用 Agent handoff 准备面试或深挖项目。
+- 面试后更新阶段，并记录后续通知。
+
+## 当前边界
+
+- 通知当前主要通过手动导入，尚不自动读取邮箱。
+- 某些解析或 AI 辅助能力需要你在账号设置中完成相应配置。
+- Agent handoff 当前是复制上下文，不会自动操作本地 Codex App。
+- 这是个人 Beta 工具；重要面试时间和 ddl 请始终以招聘方原始通知为准。
+
+## 隐私
+
+- 每个账号的数据按用户隔离。
+- 简历文件使用受保护的存储和下载路径，不会公开展示给其他用户。
+- 你配置的第三方 AI 服务或密钥仅按你的配置用于相关功能。
+
+## 截图
+
+当前仓库没有适合公开展示的最新截图。建议在正式环境手动截取并加入以下三个文件：
+
+- `docs/screenshots/dashboard.png`：首页，展示今日待办与临近事项。
+- `docs/screenshots/jobs.png`：岗位工作台，优先展示看板拖拽或五列表格。
+- `docs/screenshots/notifications.png`：通知管理，展示按岗位聚合的通知历史。
+
+## 开发者运行
+
+<details>
+<summary>本地运行、数据库迁移与部署说明</summary>
+
+### 技术栈
+
+- Next.js / React / TypeScript
+- Prisma + PostgreSQL
+- Vercel Blob 私有文件存储
+
+### 安装与开发
 
 ```bash
 npm install
-```
-
-2. 准备环境变量
-
-复制 `.env.example` 为 `.env`。
-
-本地开发默认使用 SQLite 和本地上传目录。
-
-3. 初始化数据库
-
-```bash
-npm run prisma:db:push
-npm run prisma:seed
-```
-
-4. 启动开发环境
-
-```bash
+# 配置 .env.local 中所需的数据库、认证和存储变量
 npm run dev
 ```
 
-5. 访问应用
-
-- App: [http://localhost:3000](http://localhost:3000)
-- Health: [http://localhost:3000/api/health](http://localhost:3000/api/health)
-  Health 响应里会带上数据库、存储、AI、部署就绪度的运行时摘要。
-
-## 演示账号
-
-- 邮箱：`demo@jobworkbench.local`
-- 密码：`demo123456`
-
-## 生产化建议
-
-推荐部署组合：
-
-- PostgreSQL: Neon
-- Object Storage: Vercel Blob
-- Hosting: Vercel
-
-项目已经准备了：
-
-- `prisma/schema.postgres.prisma`
-- `lib/storage.ts` 中的 `vercel-blob` provider
-- `.env.neon.example`
-- `.env.production.example`
-- `npm run predeploy:check`
-- `npm run prepare:env:production`
-
-## 常用命令
+### 构建
 
 ```bash
-npm run dev
 npm run build
-npm run prisma:db:push
+```
+
+### PostgreSQL migration
+
+对目标数据库使用 direct / non-pooled `DATABASE_URL`，并显式执行：
+
+```bash
 npm run prisma:generate:postgres
-npm run prisma:db:push:postgres
-npm run prisma:seed
-npm run predeploy:check
-npm run prepare:env:production
+npm run prisma:migrate:status:postgres
+npm run prisma:migrate:deploy:postgres
+npm run prisma:migrate:status:postgres
 ```
 
-## 目录结构
+应用运行时应使用 pooled `DATABASE_URL`。不要以 `prisma migrate dev` 或 `prisma db push` 作为发布步骤。
 
-```text
-app/                Next.js App Router 页面与 server actions
-components/         布局与通用组件
-lib/                数据库、会话、AI、上传、存储等基础能力
-prisma/             Prisma schema 与 seed
-scripts/            预部署检查脚本
-public/uploads/     本地存储 provider 的上传目录
-.tmp/uploads/       解析流程使用的临时文件目录
-```
+### 部署
 
-## 部署说明
+查看 [DEPLOYMENT.md](DEPLOYMENT.md) 和 [OPS_LAUNCH_AND_DOMAIN_CUTOVER.md](OPS_LAUNCH_AND_DOMAIN_CUTOVER.md)。
 
-更完整的生产部署与 Neon / Vercel Blob 配置说明见：
-
-- [DEPLOYMENT.md](/e:/code/job-hunt-ai-workbench/DEPLOYMENT.md)
-- [.env.neon.example](/e:/code/job-hunt-ai-workbench/.env.neon.example)
+</details>
