@@ -4,7 +4,7 @@
 
 ## 在线体验
 
-[立即使用求职工作台](https://job-hunt-ai-workbench-3ec5dk9ev-m7826446-7831s-projects.vercel.app/login)
+[立即使用求职工作台](https://project-iry1g.vercel.app/)
 
 
 ## 它解决什么问题
