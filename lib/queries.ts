@@ -6,12 +6,14 @@ export async function getDashboardData() {
   const user = await requireSessionUser();
   const now = new Date();
   const windowEnd = new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000);
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1);
   const activeApplicationWhere = {
     currentStage: { not: "CLOSED" as const },
     jobLead: { ownerId: user.id, status: { not: "CLOSED" as const } }
   };
 
-  const [applications, deadlineEvents, scheduleEvents, recentEvents] = await withDbRetry("getDashboardData", () =>
+  const [applications, deadlineEvents, scheduleEvents, recentEvents, calendarEvents] = await withDbRetry("getDashboardData", () =>
     Promise.all([
         prisma.application.findMany({
           where: activeApplicationWhere,
@@ -109,6 +111,23 @@ export async function getDashboardData() {
           },
           orderBy: [{ createdAt: "desc" }, { id: "asc" }],
           take: 30
+        }),
+        prisma.event.findMany({
+          where: {
+            eventType: { in: ["ASSESSMENT", "INTERVIEW"] },
+            eventTime: { gte: monthStart, lt: monthEnd },
+            application: activeApplicationWhere
+          },
+          select: {
+            id: true,
+            applicationId: true,
+            eventType: true,
+            eventTime: true,
+            createdAt: true,
+            title: true,
+            application: { select: { jobLead: { select: { id: true, companyName: true, roleTitle: true } } } }
+          },
+          orderBy: [{ eventTime: "asc" }, { id: "asc" }]
         })
       ])
   );
@@ -200,12 +219,29 @@ export async function getDashboardData() {
   }
 
   const recentTimelineEvents = uniqueCriticalEvents(recentEvents).slice(0, 10);
+  const progress = {
+    readyToApply: 0,
+    applied: 0,
+    assessment: 0,
+    interview: 0,
+    offer: 0
+  };
+
+  for (const application of applications) {
+    if (application.currentStage === "INTERESTED" || application.currentStage === "READY_TO_APPLY") progress.readyToApply += 1;
+    else if (application.currentStage === "APPLIED") progress.applied += 1;
+    else if (application.currentStage === "ASSESSMENT") progress.assessment += 1;
+    else if (["INTERVIEW", "FIRST_INTERVIEW", "SECOND_INTERVIEW", "THIRD_INTERVIEW", "FINAL_INTERVIEW"].includes(application.currentStage)) progress.interview += 1;
+    else if (application.currentStage === "OFFER") progress.offer += 1;
+  }
 
   return {
     upcomingDeadlineJobs,
     upcomingScheduleEvents: uniqueCriticalEvents(scheduleEvents).slice(0, 10),
     recentTimelineEvents,
-    todayActionItems: sortWorkflowItems(todayActionItems).slice(0, 10)
+    todayActionItems: sortWorkflowItems(todayActionItems).slice(0, 10),
+    calendarEvents: uniqueCriticalEvents(calendarEvents).slice(0, 12),
+    progress
   };
 }
 

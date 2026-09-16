@@ -1,81 +1,74 @@
 import Link from "next/link";
 import { PageShell } from "@/components/app-shell";
-import { Badge, Panel } from "@/components/cards";
-import { getStageLabel } from "@/lib/constants";
-import { formatDate } from "@/lib/format";
+import { Panel } from "@/components/cards";
 import { getDashboardData } from "@/lib/queries";
-import { getRemainingDays } from "@/lib/workflow";
 
 export default async function DashboardPage() {
-  const { todayActionItems, upcomingDeadlineJobs, upcomingScheduleEvents, recentTimelineEvents } =
+  const { todayActionItems, calendarEvents, progress } =
     await getDashboardData();
+  const monthLabel = new Intl.DateTimeFormat("zh-CN", { month: "long" }).format(new Date());
 
   return (
     <PageShell
       title="秋招工作流"
-      description="只显示当前申请的下一步、临近关键事件和事件时间线。"
+      description="聚焦今天要推进的事项、近期安排与整体求职进度。"
       action={<Link href="/notifications" className="inline-flex rounded-2xl bg-ink px-4 py-3 text-sm font-medium text-white">导入或修正通知</Link>}
     >
-      <Panel title="今天需要处理" subtitle="优先级固定：未投递的临近截止，其次临近笔试/面试，最后是人工填写的下一步。">
-        <div className="space-y-3">
-          {todayActionItems.length === 0 ? <EmptyState>今天暂无需要优先处理的事项。</EmptyState> : todayActionItems.map((item) => (
-            <Link key={item.id} href={item.href} className="flex items-start justify-between gap-4 rounded-2xl border border-line p-4 transition hover:border-accent">
-              <div className="min-w-0">
-                <div className="truncate font-medium text-ink">{item.companyName} | {item.roleTitle}</div>
-                <div className="mt-1 text-sm text-slate-600">{item.reason}</div>
-                <div className="mt-1 text-xs text-slate-400">{item.timeLabel}：{formatDate(item.timeAt)}</div>
-              </div>
-              <Badge>{getStageLabel(item.stage)}</Badge>
+      <Panel title={`今天有 ${todayActionItems.length} 件事需要处理`} subtitle="今日 / 即将到期">
+        <div className="divide-y divide-line">
+          {todayActionItems.length === 0 ? <EmptyState>目前没有临近的待办或安排。</EmptyState> : todayActionItems.map((item) => (
+            <Link key={item.id} href={item.href} className="flex items-center justify-between gap-4 py-3 first:pt-0 last:pb-0 transition hover:text-accent">
+              <p className="min-w-0 truncate text-sm text-ink"><span className="font-medium">{item.companyName}</span>：{item.reason}</p>
+              <span className="shrink-0 text-xs text-slate-400">{formatRelativeTime(item.timeAt)}</span>
             </Link>
           ))}
         </div>
       </Panel>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Panel title="即将截止" subtitle="未来 5 天内的截止时间；同一岗位只保留最早的一项。">
-          <div className="space-y-3">
-            {upcomingDeadlineJobs.length === 0 ? <EmptyState>未来 5 天内暂无即将截止的岗位。</EmptyState> : upcomingDeadlineJobs.map((job) => (
-              <Link key={job.id} href={`/jobs/${job.id}`} className="flex items-start justify-between gap-4 rounded-2xl border border-line p-4 transition hover:border-accent">
-                <div className="min-w-0">
-                  <div className="truncate font-medium text-ink">{job.companyName} | {job.roleTitle}</div>
-                  <div className="mt-1 text-sm text-slate-500">截止日期：{formatDate(job.deadlineAt)}</div>
-                </div>
-                <Badge>剩余 {getRemainingDays(job.deadlineAt, new Date())} 天</Badge>
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_.8fr]">
+        <Panel title="日历" subtitle={monthLabel}>
+          <div className="space-y-1">
+            {calendarEvents.length === 0 ? <EmptyState>本月暂无测评或面试安排。</EmptyState> : calendarEvents.map((event) => (
+              <Link key={event.id} href={`/jobs/${event.application.jobLead.id}`} className="flex items-center gap-3 rounded-xl px-2 py-2 transition hover:bg-panel">
+                <span className="w-8 text-sm font-semibold tabular-nums text-accent">{event.eventTime?.getDate()}</span>
+                <span className="min-w-0 truncate text-sm text-slate-700">{event.application.jobLead.companyName} · {event.title || (event.eventType === "INTERVIEW" ? "面试" : "测评")}</span>
               </Link>
             ))}
           </div>
         </Panel>
 
-        <Panel title="即将到来的笔试/面试" subtitle="未来 5 天内的安排；同一申请、类型和时间只显示一次。">
-          <div className="space-y-3">
-            {upcomingScheduleEvents.length === 0 ? <EmptyState>未来 5 天内暂无笔试或面试安排。</EmptyState> : upcomingScheduleEvents.map((event) => (
-              <Link key={event.id} href={`/jobs/${event.application.jobLead.id}`} className="flex items-start justify-between gap-4 rounded-2xl border border-line p-4 transition hover:border-accent">
-                <div className="min-w-0">
-                  <div className="truncate font-medium text-ink">{event.application.jobLead.companyName} | {event.application.jobLead.roleTitle}</div>
-                  <div className="mt-1 text-sm text-slate-500">{event.eventType === "INTERVIEW" ? "面试" : "笔试"}：{formatDate(event.eventTime)}</div>
-                </div>
-                <Badge>{getStageLabel(event.application.currentStage)}</Badge>
-              </Link>
-            ))}
-          </div>
+        <Panel title="求职进度">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
+            <ProgressItem label="待投递" value={progress.readyToApply} />
+            <ProgressItem label="已投递" value={progress.applied} />
+            <ProgressItem label="测评" value={progress.assessment} />
+            <ProgressItem label="面试" value={progress.interview} />
+            <ProgressItem label="Offer" value={progress.offer} />
+          </dl>
         </Panel>
       </div>
-
-      <Panel title="最近事件" subtitle="通知导入和人工修正都保留为 Event 时间线来源；重复关键事件只显示一次。">
-        <div className="space-y-3">
-          {recentTimelineEvents.length === 0 ? <EmptyState>还没有事件记录。可以从通知管理导入或人工补充。</EmptyState> : recentTimelineEvents.map((event) => (
-            <Link key={event.id} href={`/jobs/${event.application.jobLead.id}`} className="block rounded-2xl border border-line p-4 transition hover:border-accent">
-              <div className="text-sm font-medium text-ink">{event.application.jobLead.companyName} | {event.application.jobLead.roleTitle}</div>
-              <div className="mt-1 text-sm text-slate-600">{event.title}</div>
-              <div className="mt-2 text-xs text-slate-400">{formatDate(event.eventTime || event.createdAt)}</div>
-            </Link>
-          ))}
-        </div>
-      </Panel>
     </PageShell>
   );
 }
 
 function EmptyState({ children }: { children: React.ReactNode }) {
   return <div className="rounded-2xl bg-panel p-4 text-sm text-slate-500">{children}</div>;
+}
+
+function ProgressItem({ label, value }: { label: string; value: number }) {
+  return <div className="flex items-baseline justify-between gap-3 border-b border-line pb-2"><dt className="text-slate-500">{label}</dt><dd className="text-lg font-semibold tabular-nums text-ink">{value}</dd></div>;
+}
+
+function formatRelativeTime(value: Date) {
+  const now = new Date();
+  const milliseconds = value.getTime() - now.getTime();
+  const hours = Math.ceil(milliseconds / (60 * 60 * 1000));
+  if (hours > 0 && hours < 24) return `${hours} 小时后`;
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  if (value >= tomorrow && value < new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate() + 1)) return `明天 ${formatTime(value)}`;
+  return new Intl.DateTimeFormat("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }).format(value);
+}
+
+function formatTime(value: Date) {
+  return new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false }).format(value);
 }
