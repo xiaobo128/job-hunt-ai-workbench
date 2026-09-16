@@ -2,26 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import clsx from "clsx";
 import { logoutUser } from "@/app/auth-actions";
 
 const navItems = [
   { href: "/", label: "首页", icon: "home" },
   { href: "/jobs", label: "我的求职", icon: "briefcase" },
-  { href: "/resumes", label: "候选人资料", icon: "fileText" },
-  { href: "/account", label: "设置", icon: "settings" }
+  { href: "/resumes", label: "我的简历", icon: "fileText" },
+  { href: "/notifications", label: "通知管理", icon: "bell" }
 ] as const;
 
-const quickLinks = [{ href: "/notifications", label: "通知管理", icon: "bell" }] as const;
-
-type IconName = (typeof navItems)[number]["icon"] | (typeof quickLinks)[number]["icon"];
+type IconName = (typeof navItems)[number]["icon"];
 
 function SidebarIcon({ name }: { name: IconName }) {
   const paths = {
     home: <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V10Z" />,
     briefcase: <><rect x="3" y="7" width="18" height="13" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12h18M10 12v2h4v-2" /></>,
     fileText: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z" /><path d="M14 2v6h6M8 13h8M8 17h6" /></>,
-    settings: <><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.1 2.1-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-3v-.2a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1-2.1-2.1.1-.1A1.7 1.7 0 0 0 7 15a1.7 1.7 0 0 0-1.6-1H5.2v-3h.2A1.7 1.7 0 0 0 7 10a1.7 1.7 0 0 0-.3-1.9l-.1-.1 2.1-2.1.1.1a1.7 1.7 0 0 0 1.9.3 1.7 1.7 0 0 0 1-1.6v-.2h3v.2a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1 2.1 2.1-.1.1A1.7 1.7 0 0 0 19.4 10a1.7 1.7 0 0 0 1.6 1h.2v3H21a1.7 1.7 0 0 0-1.6 1Z" /></>,
     bell: <><path d="M18 9a6 6 0 1 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" /></>
   } satisfies Record<IconName, React.ReactNode>;
 
@@ -45,6 +43,26 @@ export function Sidebar({
   } | null;
 }) {
   const pathname = usePathname();
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement>(null);
+  const accountActive = isActivePath(pathname, "/account");
+
+  useEffect(() => {
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (!accountMenuRef.current?.contains(event.target as Node)) setAccountMenuOpen(false);
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setAccountMenuOpen(false);
+    }
+
+    document.addEventListener("pointerdown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
 
   return (
     <aside className="sticky top-4 hidden h-[calc(100vh-2rem)] w-[240px] shrink-0 rounded-3xl border border-line bg-white/80 p-4 shadow-card backdrop-blur md:flex md:flex-col">
@@ -75,41 +93,45 @@ export function Sidebar({
         })}
       </nav>
 
-      <div className="mt-5 border-t border-line pt-4">
-        <div className="px-3 text-xs font-medium text-slate-400">快捷入口</div>
-        <nav aria-label="快捷入口" className="mt-2 space-y-1">
-          {quickLinks.map((item) => {
-            const active = isActivePath(pathname, item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                prefetch
-                aria-current={active ? "page" : undefined}
-                className={clsx(
-                  "flex h-10 items-center gap-3 rounded-2xl px-3 text-sm transition",
-                  active ? "bg-slate-100 font-medium text-ink" : "text-slate-500 hover:bg-slate-100 hover:text-ink"
-                )}
-              >
-                <SidebarIcon name={item.icon} />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
+      <div ref={accountMenuRef} className="relative mt-auto border-t border-line pt-3">
+        {accountMenuOpen ? (
+          <div role="menu" aria-label="账号菜单" className="absolute inset-x-0 bottom-full mb-2 rounded-2xl border border-line bg-white p-2 shadow-card">
+            <Link
+              href="/account"
+              role="menuitem"
+              prefetch
+              onClick={() => setAccountMenuOpen(false)}
+              className={clsx(
+                "flex rounded-xl px-3 py-2 text-sm font-medium transition",
+                accountActive ? "bg-slate-100 text-ink" : "text-slate-600 hover:bg-slate-100 hover:text-ink"
+              )}
+            >
+              设置
+            </Link>
+            <form action={logoutUser}>
+              <button role="menuitem" className="flex w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-ink">
+                退出登录
+              </button>
+            </form>
+          </div>
+        ) : null}
+        <button
+          type="button"
+          aria-expanded={accountMenuOpen}
+          aria-haspopup="menu"
+          onClick={() => setAccountMenuOpen((open) => !open)}
+          className={clsx(
+            "flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-left transition",
+            accountActive || accountMenuOpen ? "bg-slate-100 text-ink" : "text-slate-500 hover:bg-slate-100 hover:text-ink"
+          )}
+        >
+          <span>
+            <span className="block text-sm font-medium">账号</span>
+            {currentUser ? <span className="mt-0.5 block text-xs text-slate-400">{currentUser.email}</span> : null}
+          </span>
+          <span aria-hidden="true" className={clsx("text-xs transition-transform", accountMenuOpen && "rotate-180")}>⌃</span>
+        </button>
       </div>
-
-      {currentUser ? (
-        <div className="mt-auto rounded-2xl border border-line bg-panel p-4">
-          <div className="text-sm font-medium text-ink">{currentUser.name || "未命名用户"}</div>
-          <div className="mt-1 text-xs text-slate-500">{currentUser.email}</div>
-          <form action={logoutUser} className="mt-4">
-            <button className="w-full rounded-2xl bg-white px-3 py-2 text-sm font-medium text-ink ring-1 ring-line">
-              退出登录
-            </button>
-          </form>
-        </div>
-      ) : null}
     </aside>
   );
 }
