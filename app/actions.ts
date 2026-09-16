@@ -333,10 +333,10 @@ export async function updateApplicationStage(formData: FormData) {
 
 }
 
-export async function updateDashboardEventStatus(eventId: string, status: EventStatus) {
+export async function updateEventStatus(eventId: string, status: EventStatus) {
   const user = await requireSessionUser();
 
-  if (!eventId || (status !== EventStatus.COMPLETED && status !== EventStatus.IGNORED)) {
+  if (!eventId || !Object.values(EventStatus).includes(status)) {
     throw new Error("Invalid event status");
   }
 

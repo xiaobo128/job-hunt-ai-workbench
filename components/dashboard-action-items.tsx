@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { closeDashboardApplication, updateDashboardEventStatus } from "@/app/actions";
+import { closeDashboardApplication, updateEventStatus } from "@/app/actions";
 import { Panel } from "@/components/cards";
 import type { DashboardWorkflowItem } from "@/lib/workflow";
 
@@ -16,7 +16,7 @@ export function DashboardActionItems({ initialItems }: { initialItems: Dashboard
     setOpenItemId(null);
     setError(null);
     try {
-      await updateDashboardEventStatus(item.eventId, status);
+      await updateEventStatus(item.eventId, status);
       setItems((current) => status === "IGNORED"
         ? current.filter((currentItem) => currentItem.eventId !== item.eventId)
         : sortItems(current.map((currentItem) => currentItem.eventId === item.eventId
