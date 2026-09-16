@@ -7,6 +7,7 @@ import type { ApplicationStage } from "@prisma/client";
 import { updateApplicationStage } from "@/app/actions";
 import { Badge } from "@/components/cards";
 import { getStageDisplayLabel, normalizeApplicationStage, stageOptions } from "@/lib/constants";
+import { getCurrentJobItem } from "@/lib/job-current-item";
 
 type JobItem = {
   id: string; companyName: string; roleTitle: string; city: string | null; seniority: string | null;
@@ -95,7 +96,7 @@ function JobEditor({ job, index, onSave, onSaveNextAction, className }: { job: J
   const inputRef = useRef<HTMLInputElement>(null); const savingRef = useRef(false);
   const [isEditingNextAction, setIsEditingNextAction] = useState(false); const [draftNextAction, setDraftNextAction] = useState("");
   const controlClass = "h-10 w-full rounded-xl border border-line bg-white px-3 text-sm";
-  const currentItem = getCurrentItem(app);
+  const currentItem = getCurrentJobItem(app);
   useEffect(() => { if (isEditingNextAction) { inputRef.current?.focus(); inputRef.current?.select(); } }, [isEditingNextAction]);
   const startEditing = () => { if (!app) return; setDraftNextAction(app.nextAction ?? ""); setIsEditingNextAction(true); };
   const cancelEditing = () => { setDraftNextAction(app?.nextAction ?? ""); setIsEditingNextAction(false); };
@@ -107,15 +108,7 @@ function JobEditor({ job, index, onSave, onSaveNextAction, className }: { job: J
     if (saved) setIsEditingNextAction(false); else cancelEditing();
   };
   const submit = (event: FormEvent<HTMLFormElement>) => { if (!isEditingNextAction) return onSave(event); event.preventDefault(); void saveEditing(); };
-  return <form ref={ref} onSubmit={submit} className={className}>{app ? <input type="hidden" name="applicationId" value={app.id} /> : null}<div className="tabular-nums text-xs text-slate-400">{index}</div><div className="min-w-0"><Link href={`/jobs/${job.id}`} className="block truncate font-semibold text-ink underline-offset-4 hover:underline">{job.roleTitle}</Link><div className="mt-1 truncate text-slate-500">{job.companyName}{job.needsReview ? <Badge>待确认</Badge> : null}</div></div><div className="truncate text-slate-600">{job.city || "待确认"}</div><div>{app ? <select name="stage" defaultValue={normalizeApplicationStage(app.currentStage)} onChange={() => ref.current?.requestSubmit()} className={controlClass}>{stageOptions.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}</select> : <span className="text-slate-500">{getStageDisplayLabel(job.status)}</span>}</div><div className="min-w-0">{isEditingNextAction ? <input ref={inputRef} value={draftNextAction} onChange={(event) => setDraftNextAction(event.target.value)} onBlur={() => void saveEditing()} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); cancelEditing(); } }} aria-label="当前事项" className="h-10 w-full rounded-xl border border-line bg-white px-3 text-sm outline-none ring-1 ring-slate-200" /> : <div onDoubleClick={startEditing} title={app ? "双击编辑当前事项" : undefined} className={`flex min-h-10 w-full items-center rounded-lg px-2 transition-colors ${app ? "cursor-text hover:bg-slate-50" : ""}`}><p className="truncate text-sm text-slate-600">{currentItem.text}</p></div>}</div></form>;
-}
-function getCurrentItem(application: JobItem["application"]): { source: "nextAction" | "event" | "empty"; text: string } {
-  const nextAction = application?.nextAction?.trim();
-  if (nextAction) return { source: "nextAction", text: nextAction };
-  const events = application?.events ?? [];
-  const event = events.find((item) => item.eventType !== "NOTE") ?? events[0];
-  if (event?.title.trim()) return { source: "event", text: event.title.trim() };
-  return { source: "empty", text: "—" };
+  return <form ref={ref} onSubmit={submit} className={className}>{app ? <input type="hidden" name="applicationId" value={app.id} /> : null}<div className="tabular-nums text-xs text-slate-400">{index}</div><div className="min-w-0"><Link href={`/jobs/${job.id}`} className="block truncate font-semibold text-ink underline-offset-4 hover:underline">{job.roleTitle}</Link><div className="mt-1 truncate text-slate-500">{job.companyName}{job.needsReview ? <Badge>待确认</Badge> : null}</div></div><div className="truncate text-slate-600">{job.city || "待确认"}</div><div>{app ? <select name="stage" defaultValue={normalizeApplicationStage(app.currentStage)} onChange={() => ref.current?.requestSubmit()} className={controlClass}>{stageOptions.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}</select> : <span className="text-slate-500">{getStageDisplayLabel(job.status)}</span>}</div><div className="min-w-0">{isEditingNextAction ? <input ref={inputRef} value={draftNextAction} onChange={(event) => setDraftNextAction(event.target.value)} onBlur={() => void saveEditing()} onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); cancelEditing(); } }} aria-label="当前事项" className="h-10 w-full rounded-xl border border-line bg-white px-3 text-sm outline-none ring-1 ring-slate-200" /> : <div onDoubleClick={startEditing} title={app ? "双击编辑当前事项" : undefined} className={`flex min-h-10 w-full items-center rounded-lg px-2 transition-colors ${app ? "cursor-text hover:bg-slate-50" : ""}`}><p className="truncate text-sm text-slate-600">{currentItem.text || "—"}</p></div>}</div></form>;
 }
 function EmptyState() { return <div className="rounded-3xl border border-dashed border-line bg-white p-6 text-center text-sm text-slate-500">当前筛选条件下还没有岗位记录。</div>; }
 function options(values: string[]) { return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b)); }
