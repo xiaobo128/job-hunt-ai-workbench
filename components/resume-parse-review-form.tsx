@@ -74,7 +74,7 @@ export function ResumeParseReviewForm({
 
   return (
     <div className="space-y-5 rounded-3xl border border-line bg-white p-4 shadow-card">
-      <div>
+      <div className="xl:sticky xl:top-0 xl:z-10 xl:-mx-4 xl:-mt-4 xl:bg-white xl:px-4 xl:pb-4 xl:pt-4">
         <h2 className="font-semibold text-ink">结构化字段</h2>
         <p className="mt-1 text-sm text-slate-500">
           {editable ? "可直接修改提取结果；保存和确认时服务端都会再次校验完整数据。" : "该版本已经锁定，字段不可修改。"}
