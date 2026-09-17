@@ -17,7 +17,8 @@ export default async function NotificationsPage() {
       include: {
         jobLead: { select: { companyName: true, roleTitle: true } },
         _count: { select: { events: true } }
-      }
+      },
+      orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }]
     }),
     prisma.application.findMany({
       where: { currentStage: { not: "CLOSED" }, jobLead: { ownerId: user.id, status: { not: "CLOSED" } } },

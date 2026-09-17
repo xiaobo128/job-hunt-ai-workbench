@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { reorderNotificationApplications } from "@/app/actions";
 
 export type NotificationOpportunity = {
@@ -16,20 +16,24 @@ export function NotificationOpportunityList({ initialOpportunities }: { initialO
   const [opportunities, setOpportunities] = useState(initialOpportunities);
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [targetId, setTargetId] = useState<string | null>(null);
+  const [targetPosition, setTargetPosition] = useState<"before" | "after">("before");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const didDragRef = useRef(false);
 
-  function moveOpportunity(targetId: string) {
-    if (!draggedId || draggedId === targetId) return;
+  function moveOpportunity(sourceId: string, targetId: string, position: "before" | "after") {
+    if (sourceId === targetId) return;
 
     const previous = opportunities;
-    const fromIndex = previous.findIndex((item) => item.id === draggedId);
+    const fromIndex = previous.findIndex((item) => item.id === sourceId);
     const toIndex = previous.findIndex((item) => item.id === targetId);
     if (fromIndex < 0 || toIndex < 0) return;
 
     const next = [...previous];
     const [dragged] = next.splice(fromIndex, 1);
-    next.splice(fromIndex < toIndex ? toIndex - 1 : toIndex, 0, dragged);
+    let insertIndex = toIndex - (fromIndex < toIndex ? 1 : 0);
+    if (position === "after") insertIndex += 1;
+    next.splice(insertIndex, 0, dragged);
     setOpportunities(next);
     setError(null);
     startTransition(async () => {
@@ -45,8 +49,38 @@ export function NotificationOpportunityList({ initialOpportunities }: { initialO
   return <>
     {error ? <p role="alert" className="mb-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
     <div className="space-y-2" aria-busy={pending}>
-      {opportunities.map((opportunity) => <div key={opportunity.id} draggable={!pending} onDragStart={(event) => { setDraggedId(opportunity.id); event.dataTransfer.effectAllowed = "move"; }} onDragEnd={() => { setDraggedId(null); setTargetId(null); }} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; setTargetId(opportunity.id); }} onDrop={(event) => { event.preventDefault(); moveOpportunity(opportunity.id); setDraggedId(null); setTargetId(null); }} className={`rounded-2xl border bg-white transition ${draggedId === opportunity.id ? "border-slate-300 opacity-50" : targetId === opportunity.id ? "border-accent bg-slate-50" : "border-line hover:bg-slate-50"}`}>
-        <Link href={`/notifications/${opportunity.id}`} className="flex min-h-14 items-center gap-3 px-4 py-3">
+      {opportunities.map((opportunity) => <div
+        key={opportunity.id}
+        draggable={!pending}
+        onDragStart={(event) => {
+          didDragRef.current = true;
+          setDraggedId(opportunity.id);
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", opportunity.id);
+        }}
+        onDragEnd={() => {
+          setDraggedId(null);
+          setTargetId(null);
+          setTargetPosition("before");
+          window.setTimeout(() => { didDragRef.current = false; }, 0);
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+          setTargetId(opportunity.id);
+          const bounds = event.currentTarget.getBoundingClientRect();
+          setTargetPosition(event.clientY > bounds.top + bounds.height / 2 ? "after" : "before");
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          const sourceId = event.dataTransfer.getData("text/plain") || draggedId;
+          if (sourceId) moveOpportunity(sourceId, opportunity.id, targetPosition);
+          setDraggedId(null);
+          setTargetId(null);
+        }}
+        className={`rounded-2xl border bg-white transition ${draggedId === opportunity.id ? "border-slate-300 opacity-50" : targetId === opportunity.id ? `bg-slate-50 ${targetPosition === "before" ? "border-t-2 border-accent" : "border-b-2 border-accent"}` : "border-line hover:bg-slate-50"}`}
+      >
+        <Link href={`/notifications/${opportunity.id}`} onClick={(event) => { if (didDragRef.current) event.preventDefault(); }} className="flex min-h-14 items-center gap-3 px-4 py-3">
           <span aria-hidden="true" className="cursor-grab text-slate-400 active:cursor-grabbing">⠿</span>
           <p className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{opportunity.companyName} · {opportunity.roleTitle}</p>
           <span className="shrink-0 text-xs text-slate-500">{opportunity.stageLabel}</span>
