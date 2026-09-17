@@ -6,6 +6,7 @@ export const notificationEventTypeOptions = [
   { value: "FIRST_INTERVIEW", label: "一面" },
   { value: "SECOND_INTERVIEW", label: "二面" },
   { value: "THIRD_INTERVIEW", label: "三面" },
+  { value: "INTERVIEW", label: "面试" },
   { value: "OFFER", label: "录用" },
   { value: "REJECTION", label: "拒绝" },
   { value: "DEADLINE", label: "截止时间" }

@@ -2185,9 +2185,19 @@ export async function createNotificationEvent(
   }
 }
 
-export async function updateNotificationEvent(formData: FormData) {
+type NotificationEventMutationState = {
+  status: "idle" | "success" | "error";
+  message?: string;
+  applicationId?: string;
+};
+
+export async function updateNotificationEvent(
+  _previousState: NotificationEventMutationState,
+  formData: FormData
+): Promise<NotificationEventMutationState> {
   const user = await requireSessionUser();
-  const eventId = formData.get("eventId") as string;
+  const eventId = ((formData.get("eventId") as string | null) ?? "").trim();
+  const applicationId = ((formData.get("applicationId") as string | null) ?? "").trim();
   const title = ((formData.get("title") as string | null) ?? "").trim();
   const requestedEventType = formData.get("eventType") as EventType | null;
   const eventType = requestedEventType && Object.values(EventType).includes(requestedEventType) ? requestedEventType : null;
@@ -2210,16 +2220,16 @@ export async function updateNotificationEvent(formData: FormData) {
   const relativeValidityValueRaw = ((formData.get("relativeValidityValue") as string | null) ?? "").trim();
   const relativeValidityUnit = ((formData.get("relativeValidityUnit") as string | null) ?? "").trim();
 
-  if (!eventId || !title || !eventType) {
-    return;
+  if (!eventId || !applicationId || !title || !eventType) {
+    return { status: "error", message: "请填写关联岗位、通知类型和标题。" };
   }
 
   if (eventTime.error || windowStartAt.error || deadlineAt.error || receivedAt.error) {
-    return;
+    return { status: "error", message: eventTime.error || windowStartAt.error || deadlineAt.error || receivedAt.error };
   }
 
   if (windowStartAt.value && deadlineAt.value && windowStartAt.value > deadlineAt.value) {
-    return;
+    return { status: "error", message: "开始时间不得晚于截止时间。" };
   }
 
   let relativeValidityMinutes: number | null = null;
@@ -2229,13 +2239,13 @@ export async function updateNotificationEvent(formData: FormData) {
     const multiplier = relativeValidityUnit === "hours" ? 60 : relativeValidityUnit === "days" ? 24 * 60 : null;
 
     if (!Number.isFinite(relativeValidityValue) || relativeValidityValue <= 0 || !multiplier) {
-      return;
+      return { status: "error", message: "有效时长必须是正数，并以小时或天为单位。" };
     }
 
     relativeValidityMinutes = relativeValidityValue * multiplier;
 
     if (!Number.isInteger(relativeValidityMinutes) || relativeValidityMinutes <= 0 || !receivedAt.value) {
-      return;
+      return { status: "error", message: "填写有效时长时必须填写接收时间。" };
     }
   }
 
@@ -2244,13 +2254,25 @@ export async function updateNotificationEvent(formData: FormData) {
       id: eventId,
       application: { jobLead: { ownerId: user.id } }
     },
-    include: {
-      application: true
+    select: {
+      id: true,
+      applicationId: true,
+      detailsJson: true,
+      application: { select: { jobLeadId: true } }
     }
   });
 
   if (!event) {
-    return;
+    return { status: "error", message: "未找到这条通知。" };
+  }
+
+  const targetApplication = await prisma.application.findFirst({
+    where: { id: applicationId, jobLead: { ownerId: user.id } },
+    select: { id: true, jobLeadId: true }
+  });
+
+  if (!targetApplication) {
+    return { status: "error", message: "请选择当前账户下的关联岗位。" };
   }
 
   const existingDetails = safeEventDetails(event.detailsJson);
@@ -2260,6 +2282,7 @@ export async function updateNotificationEvent(formData: FormData) {
   await prisma.event.update({
     where: { id: event.id },
     data: {
+      applicationId: targetApplication.id,
       title,
       eventType,
       eventTime: eventTime.value,
@@ -2273,6 +2296,35 @@ export async function updateNotificationEvent(formData: FormData) {
       })
     }
   });
+
+  revalidatePath("/");
+  revalidatePath("/board");
+  revalidatePath("/notifications");
+  revalidatePath(`/notifications/${event.applicationId}`);
+  revalidatePath(`/notifications/${targetApplication.id}`);
+  revalidatePath(`/jobs/${event.application.jobLeadId}`);
+  revalidatePath(`/jobs/${targetApplication.jobLeadId}`);
+
+  return { status: "success", applicationId: targetApplication.id };
+}
+
+export async function deleteNotificationEvent(eventId: string) {
+  const user = await requireSessionUser();
+
+  if (!eventId) {
+    throw new Error("Invalid event");
+  }
+
+  const event = await prisma.event.findFirst({
+    where: { id: eventId, application: { jobLead: { ownerId: user.id } } },
+    select: { id: true, applicationId: true, application: { select: { jobLeadId: true } } }
+  });
+
+  if (!event) {
+    throw new Error("Event not found");
+  }
+
+  await prisma.event.delete({ where: { id: event.id } });
 
   revalidatePath("/");
   revalidatePath("/board");

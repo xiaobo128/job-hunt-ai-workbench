@@ -12,6 +12,14 @@ type EventTimeValues = {
   relativeValidityMinutes: number | null;
 };
 
+type EventTimeFieldValues = {
+  eventTime: Date | string | null;
+  windowStartAt: Date | string | null;
+  deadlineAt: Date | string | null;
+  receivedAt: Date | string | null;
+  relativeValidityMinutes: number | null;
+};
+
 type TimeMode = "POINT" | "WINDOW" | "RELATIVE";
 
 export function EventTimeSummary(values: EventTimeValues) {
@@ -44,7 +52,7 @@ export function EventTimeFields({
   defaultValues,
   requireEventTime = false,
 }: {
-  defaultValues?: Partial<EventTimeValues>;
+  defaultValues?: Partial<EventTimeFieldValues>;
   requireEventTime?: boolean;
 }) {
   const values = {
@@ -117,7 +125,7 @@ function ModeButton({ active, children, onClick }: { active: boolean; children: 
   return <button type="button" aria-pressed={active} onClick={onClick} className={`rounded-2xl border px-3 py-2 text-sm ${active ? "border-ink bg-ink text-white" : "border-line bg-white text-slate-600"}`}>{children}</button>;
 }
 
-function inferTimeMode(values: EventTimeValues): TimeMode {
+function inferTimeMode(values: Pick<EventTimeFieldValues, "eventTime" | "windowStartAt" | "deadlineAt" | "receivedAt" | "relativeValidityMinutes">): TimeMode {
   if (values.receivedAt && values.relativeValidityMinutes) return "RELATIVE";
   if (values.windowStartAt || values.deadlineAt) return "WINDOW";
   return "POINT";
@@ -129,8 +137,10 @@ function getRelativeDefaults(minutes: number | null) {
   return { value: String(minutes / 60), unit: "hours" };
 }
 
-function toDateTimeLocalValue(value: Date | null) {
+function toDateTimeLocalValue(value: Date | string | null) {
   if (!value) return "";
-  const offsetMs = value.getTimezoneOffset() * 60_000;
-  return new Date(value.getTime() - offsetMs).toISOString().slice(0, 16);
+  const date = typeof value === "string" ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return "";
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
