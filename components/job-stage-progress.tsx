@@ -26,9 +26,9 @@ export function JobStageProgress({
   currentStage: ApplicationStage;
   hasRejectionEvent: boolean;
 }) {
-  const isClosed = currentStage === "CLOSED";
-  const currentIndex = isClosed ? -1 : stageNodes.findIndex((node) => node.matches.some((stage) => stage === currentStage));
-  const terminalLabel = isClosed ? (hasRejectionEvent ? "已拒绝" : "已终止") : null;
+  const isTerminal = currentStage === "CLOSED" || currentStage === "REJECTED";
+  const currentIndex = isTerminal ? -1 : stageNodes.findIndex((node) => node.matches.some((stage) => stage === currentStage));
+  const terminalLabel = currentStage === "REJECTED" ? "挂了" : currentStage === "CLOSED" ? (hasRejectionEvent ? "已拒绝" : "已终止") : null;
 
   return (
     <div>

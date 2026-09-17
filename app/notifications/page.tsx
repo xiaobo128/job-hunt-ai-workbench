@@ -2,7 +2,6 @@ import { PageShell } from "@/components/app-shell";
 import { AddNotificationDialog } from "@/components/add-notification-dialog";
 import { NotificationOpportunityList } from "@/components/notification-opportunity-list";
 import { prisma } from "@/lib/db";
-import { getStageDisplayLabel } from "@/lib/constants";
 import { requireSessionUser } from "@/lib/session";
 
 export default async function NotificationsPage() {
@@ -10,8 +9,8 @@ export default async function NotificationsPage() {
   const [applications, applicationOptions] = await Promise.all([
     prisma.application.findMany({
       where: {
-        currentStage: { not: "CLOSED" },
-        jobLead: { ownerId: user.id, status: { not: "CLOSED" } },
+        currentStage: { notIn: ["CLOSED", "REJECTED"] },
+        jobLead: { ownerId: user.id, status: { notIn: ["CLOSED", "REJECTED"] } },
         events: { some: {} }
       },
       include: {
@@ -21,7 +20,7 @@ export default async function NotificationsPage() {
       orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }]
     }),
     prisma.application.findMany({
-      where: { currentStage: { not: "CLOSED" }, jobLead: { ownerId: user.id, status: { not: "CLOSED" } } },
+      where: { currentStage: { notIn: ["CLOSED", "REJECTED"] }, jobLead: { ownerId: user.id, status: { notIn: ["CLOSED", "REJECTED"] } } },
       include: { jobLead: { select: { companyName: true, roleTitle: true } } },
       orderBy: { updatedAt: "desc" }
     })
@@ -32,7 +31,7 @@ export default async function NotificationsPage() {
       id: application.id,
       companyName: application.jobLead.companyName,
       roleTitle: application.jobLead.roleTitle,
-      stageLabel: getStageDisplayLabel(application.currentStage),
+      stage: application.currentStage,
       notificationCount: application._count.events
     }));
 

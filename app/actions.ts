@@ -104,7 +104,8 @@ function mapExcelStage(value: string): ApplicationStage {
   if (/面试/.test(normalized)) return ApplicationStage.INTERVIEW;
   if (/谈薪/.test(normalized)) return ApplicationStage.NEGOTIATION;
   if (/offer|已录用|录用/.test(normalized)) return ApplicationStage.OFFER;
-  if (/拒绝|挂|已结束|流程结束/.test(normalized)) return ApplicationStage.CLOSED;
+  if (/挂|拒绝|未通过|淘汰/.test(normalized)) return ApplicationStage.REJECTED;
+  if (/已结束|流程结束|结束/.test(normalized)) return ApplicationStage.CLOSED;
   return ApplicationStage.READY_TO_APPLY;
 }
 
@@ -433,6 +434,10 @@ export async function updateApplicationStage(formData: FormData) {
     ? (((formData.get("submissionChannel") as string | null) ?? "").trim() || null)
     : undefined;
   const note = (formData.get("note") as string | null) ?? undefined;
+
+  if (!Object.values(ApplicationStage).includes(stage)) {
+    throw new Error("Invalid application stage");
+  }
 
   const application = await prisma.application.findFirst({
     where: { id: applicationId, jobLead: { ownerId: user.id } }
@@ -2262,7 +2267,7 @@ function mapEventTypeToStage(eventType: EventType) {
       : eventType === "OFFER"
         ? ApplicationStage.OFFER
         : eventType === "REJECTION"
-          ? ApplicationStage.CLOSED
+          ? ApplicationStage.REJECTED
           : undefined;
 }
 

@@ -1,4 +1,5 @@
 import { prisma, withDbRetry } from "@/lib/db";
+import { ApplicationStage } from "@prisma/client";
 import { requireSessionUser } from "@/lib/session";
 import { getRemainingDays, uniqueCriticalEvents, type DashboardWorkflowItem } from "@/lib/workflow";
 import { formatDashboardEventTime, getDashboardEventDueAt } from "@/lib/event-time";
@@ -11,8 +12,8 @@ export async function getDashboardData() {
   const windowEnd = new Date(todayStart.getFullYear(), todayStart.getMonth(), todayStart.getDate() + 8);
   const completedWindowStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), todayStart.getDate() - 2);
   const activeApplicationWhere = {
-    currentStage: { not: "CLOSED" as const },
-    jobLead: { ownerId: user.id, status: { not: "CLOSED" as const } }
+    currentStage: { notIn: [ApplicationStage.CLOSED, ApplicationStage.REJECTED] },
+    jobLead: { ownerId: user.id, status: { notIn: [ApplicationStage.CLOSED, ApplicationStage.REJECTED] } }
   };
 
   const [applications, deadlineEvents, scheduleEvents, recentEvents, calendarEvents, completedEvents] = await withDbRetry("getDashboardData", () =>

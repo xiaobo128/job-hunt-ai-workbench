@@ -26,6 +26,7 @@ enum ApplicationStage {
   FINAL_INTERVIEW
   NEGOTIATION
   OFFER
+  REJECTED
   CLOSED
 }
 

@@ -8,10 +8,11 @@ import { JobDetailReturnButton } from "@/components/job-detail-return-button";
 import { JobDetailSubmitButton } from "@/components/job-detail-submit-button";
 import { JobStageProgress } from "@/components/job-stage-progress";
 import { AgentHandoffPanel } from "@/components/agent-handoff-panel";
+import { ApplicationStageBadge } from "@/components/application-stage-badge";
 import { EventTimeSummary } from "@/components/event-time-summary";
 import { DeleteJobForm } from "@/components/delete-job-form";
 import { createAgentHandoffInput } from "@/lib/agent-handoff";
-import { getStageDisplayLabel, normalizeApplicationStage, stageOptions } from "@/lib/constants";
+import { normalizeApplicationStage, stageOptions } from "@/lib/constants";
 import { prisma } from "@/lib/db";
 import { formatDate, listToMultiline } from "@/lib/format";
 import { getJobById } from "@/lib/queries";
@@ -137,7 +138,7 @@ export default async function JobDetailPage({
                 </Link>
               </Info>
               <Info label="当前推进情况">
-                {getStageDisplayLabel(job.application.currentStage, job.application.nextAction)}
+                <ApplicationStageBadge stage={job.application.currentStage} customLabel={job.application.nextAction} />
               </Info>
               <Info label="最近更新">{formatDate(job.updatedAt)}</Info>
             </div>

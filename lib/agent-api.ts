@@ -89,6 +89,6 @@ export function mapEventTypeToStage(eventType: EventType) {
       : eventType === "OFFER"
         ? ApplicationStage.OFFER
         : eventType === "REJECTION"
-          ? ApplicationStage.CLOSED
+          ? ApplicationStage.REJECTED
           : undefined;
 }

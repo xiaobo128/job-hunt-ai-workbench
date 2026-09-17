@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import type { ApplicationStage } from "@prisma/client";
 import { useRef, useState, useTransition } from "react";
 import { reorderNotificationApplications } from "@/app/actions";
+import { ApplicationStageBadge } from "@/components/application-stage-badge";
 
 export type NotificationOpportunity = {
   id: string;
   companyName: string;
   roleTitle: string;
-  stageLabel: string;
+  stage: ApplicationStage;
   notificationCount: number;
 };
 
@@ -83,7 +85,7 @@ export function NotificationOpportunityList({ initialOpportunities }: { initialO
         <Link href={`/notifications/${opportunity.id}`} onClick={(event) => { if (didDragRef.current) event.preventDefault(); }} className="flex min-h-[52px] items-center gap-3 px-4 py-2.5">
           <span aria-hidden="true" className="cursor-grab text-slate-400 active:cursor-grabbing">⠿</span>
           <p className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{opportunity.companyName} · {opportunity.roleTitle}</p>
-          <span className="shrink-0 text-xs text-slate-500">{opportunity.stageLabel}</span>
+          <ApplicationStageBadge stage={opportunity.stage} />
           <span className="shrink-0 text-xs text-slate-400">历史通知 {opportunity.notificationCount} 条</span>
           <span aria-hidden="true" className="shrink-0 text-slate-400">›</span>
         </Link>
