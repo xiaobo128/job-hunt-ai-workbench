@@ -387,7 +387,23 @@ export async function getJobById(id: string) {
     prisma.jobLead.findFirst({
       where: { id, ownerId: user.id },
       include: {
-        application: { include: { events: true } },
+        application: {
+          include: {
+            events: true,
+            usedResume: {
+              select: {
+                id: true,
+                title: true,
+                parseAttempts: {
+                  where: { status: "CONFIRMED" },
+                  orderBy: [{ confirmedAt: "desc" }, { id: "asc" }],
+                  take: 1,
+                  select: { id: true, documentJson: true }
+                }
+              }
+            }
+          }
+        },
         tailorRuns: { include: { resume: true }, orderBy: { createdAt: "desc" } },
         resumeVariants: { include: { resume: true }, orderBy: { createdAt: "desc" } },
         agentRuns: {

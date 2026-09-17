@@ -129,6 +129,7 @@ export function createAgentHandoffInput(args: {
   };
   application: {
     id: string; currentStage: string; appliedAt: Date | null; submissionChannel: string | null; nextAction: string | null; nextActionDueAt: Date | null; note: string | null;
+    usedResume: { id: string; title: string } | null;
   };
   events: Array<{ id: string; eventType: string; title: string; eventTime: Date | null; createdAt: Date; detailsJson: string }>;
   candidateSource: ResumeFactSource | null;
@@ -141,7 +142,8 @@ export function createAgentHandoffInput(args: {
     },
     application: {
       id: args.application.id, stage: text(args.application.currentStage), appliedAt: args.application.appliedAt?.toISOString() ?? null,
-      submissionChannel: text(args.application.submissionChannel), nextAction: text(args.application.nextAction), nextActionDueAt: args.application.nextActionDueAt?.toISOString() ?? null, note: text(args.application.note)
+      submissionChannel: text(args.application.submissionChannel), nextAction: text(args.application.nextAction), nextActionDueAt: args.application.nextActionDueAt?.toISOString() ?? null, note: text(args.application.note),
+      usedResume: args.application.usedResume
     },
     events: [...args.events]
       .sort((left, right) => {

@@ -55,7 +55,7 @@ test("candidate facts are a minimal confirmed projection", () => {
 test("handoff with no confirmed resume explicitly omits candidate facts and preserves missing fields", () => {
   const input = createAgentHandoffInput({
     job: { id: "job-1", companyName: "", roleTitle: "", city: null, seniority: null, salaryRange: null, skills: "not-json", responsibilities: "[]", requirements: "[]", sourceUrl: null },
-    application: { id: "application-1", currentStage: "INTERVIEW", appliedAt: null, submissionChannel: null, nextAction: null, nextActionDueAt: null, note: null },
+    application: { id: "application-1", currentStage: "INTERVIEW", appliedAt: null, submissionChannel: null, nextAction: null, nextActionDueAt: null, note: null, usedResume: null },
     events: [],
     candidateSource: null
   });
@@ -63,5 +63,5 @@ test("handoff with no confirmed resume explicitly omits candidate facts and pres
   assert.equal(handoff.context.candidate, null);
   assert.equal(handoff.context.job.companyName, null);
   assert.match(handoff.prompt, /只能把 context 中的内容当作事实/);
-  assert.match(handoff.markdown, /没有可用的已确认结构化简历解析/);
+  assert.match(handoff.markdown, /没有可用的已确认 ResumeDocument/);
 });

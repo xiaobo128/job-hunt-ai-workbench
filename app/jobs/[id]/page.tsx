@@ -60,28 +60,31 @@ export default async function JobDetailPage({
     requirementsText: listToMultiline(job.requirements)
   });
 
-  const currentResume = await prisma.resume.findFirst({
-    where: { ownerId: job.ownerId, isPrimary: true },
-    select: {
-      id: true,
-      title: true,
-      parseAttempts: {
-        where: { status: "CONFIRMED" },
-        orderBy: [{ confirmedAt: "desc" }, { id: "asc" }],
-        take: 1,
-        select: { id: true, documentJson: true }
-      }
-    }
-  });
-  const selectedParse = currentResume?.parseAttempts[0] || null;
+  const primaryResume = job.application.usedResume
+    ? null
+    : await prisma.resume.findFirst({
+        where: { ownerId: job.ownerId, isPrimary: true },
+        select: {
+          id: true,
+          title: true,
+          parseAttempts: {
+            where: { status: "CONFIRMED" },
+            orderBy: [{ confirmedAt: "desc" }, { id: "asc" }],
+            take: 1,
+            select: { id: true, documentJson: true }
+          }
+        }
+      });
+  const selectedResume = job.application.usedResume ?? primaryResume;
+  const selectedParse = selectedResume?.parseAttempts[0] ?? null;
   const handoffInput = createAgentHandoffInput({
     job,
     application: job.application,
     events: job.application.events,
-    candidateSource: currentResume && selectedParse
+    candidateSource: selectedResume && selectedParse
       ? {
-          resumeId: currentResume.id,
-          resumeTitle: currentResume.title,
+          resumeId: selectedResume.id,
+          resumeTitle: selectedResume.title,
           confirmedParseId: selectedParse.id,
           documentJson: selectedParse.documentJson
         }
