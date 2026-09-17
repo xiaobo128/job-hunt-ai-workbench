@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { PageShell } from "@/components/app-shell";
-import { ResumeParseReviewForm } from "@/components/resume-parse-review-form";
+import { ResumeParseReviewActions, ResumeParseReviewForm } from "@/components/resume-parse-review-form";
 import { prisma } from "@/lib/db";
 import { ResumeDocumentSchema } from "@/lib/resume-parsing/core";
 import { requireSessionUser } from "@/lib/session";
@@ -60,16 +60,12 @@ export default async function ResumeParseReviewPage({
       className="xl:grid xl:h-[calc(100dvh-2rem)] xl:grid-rows-[auto_minmax(0,1fr)] xl:gap-4 xl:space-y-0"
       description={
         isEditable
-          ? "请核对原始文件和系统提取的字段。先保存修改，再确认该结构化版本。"
+          ? "请核对原始文件和系统提取的字段。确认无误后，使用右上角保存并确认。"
           : parse.status === "CONFIRMED"
             ? "这是当前有效的已确认结构化简历，仅供查看。"
             : "这个结构化版本已被后续确认版本替代，仅供查看。"
       }
-      action={
-        <a href="/resumes" className="inline-flex h-10 items-center justify-center rounded-xl border border-line bg-white px-4 text-sm font-medium text-ink">
-          返回简历仓库
-        </a>
-      }
+      action={<ResumeParseReviewActions editable={isEditable} />}
     >
       <div className="grid gap-5 xl:min-h-0 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <section className="rounded-3xl border border-line bg-white p-4 shadow-card xl:sticky xl:top-0 xl:flex xl:h-full xl:min-h-0 xl:flex-col">

@@ -468,11 +468,17 @@ export async function createResume(formData: FormData) {
 
   const parseAsset = chooseAutomaticParseAsset(created.assets);
   if (parseAsset) {
-    await orchestrateResumeParse({
+    const parse = await orchestrateResumeParse({
       userId: user.id,
       resumeId: created.id,
       resumeAssetId: parseAsset.id
     });
+
+    if (parse?.status === "NEEDS_REVIEW") {
+      revalidatePath("/resumes");
+      revalidatePath("/tailor");
+      redirect(`/resumes/${created.id}/parses/${parse.id}/review`);
+    }
   }
 
   revalidatePath("/resumes");
@@ -950,6 +956,20 @@ export type ResumeParseConfirmState = {
   error?: string;
   confirmed?: boolean;
 };
+
+// This deliberately composes the established draft-save and confirmation actions.
+// It does not invoke the parser or create another Resume/ResumeParse.
+export async function saveAndConfirmResumeParseReview(
+  _previousState: ResumeParseConfirmState,
+  formData: FormData
+): Promise<ResumeParseConfirmState> {
+  const saved = await saveResumeParseReview({}, formData);
+  if (saved.error) {
+    return { error: saved.error };
+  }
+
+  return confirmResumeParseReview({}, formData);
+}
 
 export async function confirmResumeParseReview(
   _previousState: ResumeParseConfirmState,
