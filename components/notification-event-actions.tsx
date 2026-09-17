@@ -62,7 +62,7 @@ export function NotificationEventActions({
           <button type="button" onClick={() => updateStatus("IGNORED")} className="w-full rounded-lg px-3 py-2 text-left text-slate-700 hover:bg-slate-50">⊘ 忽略此事项</button>
         </> : <button type="button" onClick={() => updateStatus("ACTIVE")} className="w-full rounded-lg px-3 py-2 text-left text-slate-700 hover:bg-slate-50">恢复为待处理</button>}
         <div className="my-1 border-t border-line" />
-        <button type="button" onClick={() => { setOpen(false); setConfirmingDelete(true); }} className="w-full rounded-lg px-3 py-2 text-left text-rose-700 hover:bg-rose-50">删除</button>
+        <button type="button" onClick={() => { setOpen(false); setConfirmingDelete(true); }} className="w-full rounded-lg px-3 py-2 text-left text-rose-700 hover:bg-rose-50">删除通知</button>
       </div> : null}
       {error ? <p role="alert" className="absolute right-0 top-10 z-20 w-56 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-700">{error}</p> : null}
     </div>
@@ -74,7 +74,7 @@ export function NotificationEventActions({
         <div className="flex min-h-full items-center justify-center">
           <section role="dialog" aria-modal="true" aria-labelledby="delete-notification-title" className="w-full max-w-md rounded-3xl border border-line bg-white p-5 shadow-card" onClick={(clickEvent) => clickEvent.stopPropagation()}>
             <h2 id="delete-notification-title" className="text-lg font-semibold text-ink">删除这条通知？</h2>
-            <p className="mt-2 text-sm leading-6 text-slate-600">只删除当前通知，不会删除岗位或该岗位的其他通知。</p>
+            <p className="mt-2 text-sm leading-6 text-slate-600">只删除当前通知，不会删除岗位或该岗位的其他通知。此操作不可撤销。</p>
             <div className="mt-5 flex justify-end gap-3">
               <button type="button" disabled={pending} onClick={() => setConfirmingDelete(false)} className="rounded-2xl border border-line px-4 py-3 text-sm font-medium text-ink disabled:opacity-50">取消</button>
               <button type="button" disabled={pending} onClick={deleteEvent} className="rounded-2xl bg-rose-600 px-4 py-3 text-sm font-medium text-white disabled:opacity-50">{pending ? "正在删除..." : "删除通知"}</button>
