@@ -438,30 +438,37 @@ export async function createResume(formData: FormData) {
   const primaryAsset = assetDrafts.find((asset) => `${asset.order}` === previewKey) || assetDrafts[0];
   const preferredTextAsset = assetDrafts.find((asset) => `${asset.order}` === editingKey && asset.extractedText.trim()) || null;
 
-  const created = await prisma.resume.create({
-    data: {
-      ownerId: user.id,
-      title,
-      rawText: preferredTextAsset?.extractedText || null,
-      note: note || null,
-      fileUrl: primaryAsset.fileUrl,
-      artifactName: primaryAsset.originalName,
-      artifactMimeType: primaryAsset.mimeType,
-      assets: {
-        create: assetDrafts.map((asset) => ({
-          kind: asset.kind,
-          fileUrl: asset.fileUrl,
-          artifactName: asset.originalName,
-          artifactMimeType: asset.mimeType,
-          extractedText: asset.extractedText || null,
-          isPreviewSource: `${asset.order}` === previewKey,
-          isEditingSource: `${asset.order}` === editingKey
-        }))
+  const created = await prisma.$transaction(async (tx) => {
+    // Serializing on the owner also covers the first upload, when no Resume rows exist yet.
+    await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "User" WHERE "id" = ${user.id} FOR UPDATE`);
+    await tx.resume.updateMany({ where: { ownerId: user.id, isPrimary: true }, data: { isPrimary: false } });
+
+    return tx.resume.create({
+      data: {
+        ownerId: user.id,
+        isPrimary: true,
+        title,
+        rawText: preferredTextAsset?.extractedText || null,
+        note: note || null,
+        fileUrl: primaryAsset.fileUrl,
+        artifactName: primaryAsset.originalName,
+        artifactMimeType: primaryAsset.mimeType,
+        assets: {
+          create: assetDrafts.map((asset) => ({
+            kind: asset.kind,
+            fileUrl: asset.fileUrl,
+            artifactName: asset.originalName,
+            artifactMimeType: asset.mimeType,
+            extractedText: asset.extractedText || null,
+            isPreviewSource: `${asset.order}` === previewKey,
+            isEditingSource: `${asset.order}` === editingKey
+          }))
+        }
+      },
+      include: {
+        assets: true
       }
-    },
-    include: {
-      assets: true
-    }
+    });
   });
 
   await syncResumeAssetMetadata(created.id, aiSettings, { refreshText: false });
@@ -773,24 +780,17 @@ export async function deleteResume(formData: FormData): Promise<ResumeVersionAct
     return { error: "缺少要删除的简历版本。" };
   }
 
-  // The most recently updated Resume is the existing current-primary heuristic.
-  // Keep its protection on the server as well as in the UI.
-  const currentResume = await prisma.resume.findFirst({
-    where: { ownerId: user.id },
-    orderBy: { updatedAt: "desc" },
-    select: { id: true }
-  });
-
-  if (!currentResume || currentResume.id === resumeId) {
-    return { error: "当前主简历不能直接删除。" };
-  }
-
-  await prisma.resume.deleteMany({
+  const deleted = await prisma.resume.deleteMany({
     where: {
       id: resumeId,
-      ownerId: user.id
+      ownerId: user.id,
+      isPrimary: false
     }
   });
+
+  if (deleted.count !== 1) {
+    return { error: "当前主简历不能直接删除。" };
+  }
 
   revalidatePath("/resumes");
   revalidatePath("/tailor");
@@ -806,29 +806,37 @@ export async function setCurrentResume(formData: FormData): Promise<ResumeVersio
     return { error: "缺少要设为主简历的版本。" };
   }
 
-  const resume = await prisma.resume.findFirst({
-    where: { id: resumeId, ownerId: user.id },
-    select: {
-      id: true,
-      parseAttempts: { orderBy: { createdAt: "desc" }, select: { status: true }, take: 1 }
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "User" WHERE "id" = ${user.id} FOR UPDATE`);
+    const resume = await tx.resume.findFirst({
+      where: { id: resumeId, ownerId: user.id },
+      select: {
+        id: true,
+        parseAttempts: { orderBy: { createdAt: "desc" }, select: { status: true }, take: 1 }
+      }
+    });
+
+    if (!resume) {
+      return { error: "未找到该简历版本。" };
     }
+
+    if (resume.parseAttempts[0]?.status !== "CONFIRMED") {
+      return { error: "请先确认该简历的结构化信息，再设为主简历。" };
+    }
+
+    await tx.resume.updateMany({ where: { ownerId: user.id, isPrimary: true }, data: { isPrimary: false } });
+    await tx.resume.update({ where: { id: resume.id }, data: { isPrimary: true } });
+    return { success: true };
   });
 
-  if (!resume) {
-    return { error: "未找到该简历版本。" };
+  if (result.error) {
+    return result;
   }
-
-  if (resume.parseAttempts[0]?.status !== "CONFIRMED") {
-    return { error: "请先确认该简历的结构化信息，再设为主简历。" };
-  }
-
-  // The current-primary pointer is intentionally represented by latest updatedAt.
-  await prisma.resume.update({ where: { id: resume.id }, data: { updatedAt: new Date() } });
 
   revalidatePath("/resumes");
   revalidatePath("/tailor");
   revalidatePath("/");
-  return { success: true };
+  return result;
 }
 
 export async function deleteResumeAsset(formData: FormData) {

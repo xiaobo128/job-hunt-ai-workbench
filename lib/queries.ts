@@ -427,7 +427,7 @@ export async function getResumes() {
         },
         variants: { include: { jobLead: true }, orderBy: { createdAt: "desc" } }
       },
-      orderBy: { updatedAt: "desc" }
+      orderBy: [{ isPrimary: "desc" }, { updatedAt: "desc" }]
     });
 
     const confirmedParses = await prisma.resumeParse.findMany({

@@ -16,7 +16,7 @@ export default async function ResumesPage() {
         <div className="rounded-3xl border border-dashed border-line bg-white px-4 py-8 text-center text-sm text-slate-500">还没有简历版本。新增一份简历版本，开始整理候选人资料。</div>
       ) : (
         <div className="space-y-3">
-          {resumes.map((resume, index) => <ResumeVersionCard key={resume.id} resume={resume} isCurrent={index === 0} />)}
+          {resumes.map((resume) => <ResumeVersionCard key={resume.id} resume={resume} isCurrent={resume.isPrimary} />)}
         </div>
       )}
     </PageShell>

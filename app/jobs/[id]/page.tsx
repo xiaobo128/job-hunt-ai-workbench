@@ -61,8 +61,7 @@ export default async function JobDetailPage({
   });
 
   const currentResume = await prisma.resume.findFirst({
-    where: { ownerId: job.ownerId },
-    orderBy: { updatedAt: "desc" },
+    where: { ownerId: job.ownerId, isPrimary: true },
     select: {
       id: true,
       title: true,
