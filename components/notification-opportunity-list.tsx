@@ -48,7 +48,7 @@ export function NotificationOpportunityList({ initialOpportunities }: { initialO
 
   return <>
     {error ? <p role="alert" className="mb-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
-    <div className="space-y-2" aria-busy={pending}>
+    <div className="overflow-hidden rounded-xl border border-line bg-white" aria-busy={pending}>
       {opportunities.map((opportunity) => <div
         key={opportunity.id}
         draggable={!pending}
@@ -78,9 +78,9 @@ export function NotificationOpportunityList({ initialOpportunities }: { initialO
           setDraggedId(null);
           setTargetId(null);
         }}
-        className={`rounded-2xl border bg-white transition ${draggedId === opportunity.id ? "border-slate-300 opacity-50" : targetId === opportunity.id ? `bg-slate-50 ${targetPosition === "before" ? "border-t-2 border-accent" : "border-b-2 border-accent"}` : "border-line hover:bg-slate-50"}`}
+        className={`border-b last:border-b-0 transition ${draggedId === opportunity.id ? "border-slate-300 opacity-50" : targetId === opportunity.id ? `bg-slate-50 ${targetPosition === "before" ? "border-t-2 border-accent" : "border-b-2 border-accent"}` : "border-line hover:bg-slate-50"}`}
       >
-        <Link href={`/notifications/${opportunity.id}`} onClick={(event) => { if (didDragRef.current) event.preventDefault(); }} className="flex min-h-14 items-center gap-3 px-4 py-3">
+        <Link href={`/notifications/${opportunity.id}`} onClick={(event) => { if (didDragRef.current) event.preventDefault(); }} className="flex min-h-[52px] items-center gap-3 px-4 py-2.5">
           <span aria-hidden="true" className="cursor-grab text-slate-400 active:cursor-grabbing">⠿</span>
           <p className="min-w-0 flex-1 truncate text-sm font-medium text-ink">{opportunity.companyName} · {opportunity.roleTitle}</p>
           <span className="shrink-0 text-xs text-slate-500">{opportunity.stageLabel}</span>

@@ -21,8 +21,8 @@ export function AppFrame({ children, currentUser }: AppFrameProps) {
   return (
     <div
       className={clsx(
-        "mx-auto min-h-screen max-w-[1600px] px-4 py-4 md:px-6",
-        isAuthPage ? "flex items-center justify-center" : "flex gap-6"
+        "mx-auto min-h-screen max-w-[1600px] px-4 py-4 md:px-6 lg:px-8",
+        isAuthPage ? "flex items-center justify-center" : "flex gap-5"
       )}
     >
       {!isAuthPage ? <Sidebar currentUser={currentUser} /> : null}

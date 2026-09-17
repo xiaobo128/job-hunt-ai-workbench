@@ -13,9 +13,9 @@ export default async function ResumesPage() {
   return (
     <PageShell title="简历仓库" description="管理不同简历版本与已确认的结构化信息。" action={<AddResumeDialog />}>
       {resumes.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-line bg-white px-4 py-8 text-center text-sm text-slate-500">还没有简历版本。新增一份简历版本，开始整理候选人资料。</div>
+        <div className="rounded-xl border border-dashed border-line bg-white px-4 py-7 text-center text-sm text-slate-500">还没有简历版本。新增一份简历版本，开始整理候选人资料。</div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {resumes.map((resume) => <ResumeVersionCard key={resume.id} resume={resume} isCurrent={resume.isPrimary} />)}
         </div>
       )}
@@ -26,10 +26,10 @@ export default async function ResumesPage() {
 function ResumeVersionCard({ resume, isCurrent }: { resume: Awaited<ReturnType<typeof getResumes>>[number]; isCurrent: boolean }) {
   const confirmedParse = resume.currentConfirmedParse;
   const needsReviewParse = resume.parseAttempts[0]?.status === "NEEDS_REVIEW" ? resume.parseAttempts[0] : null;
-  return <section className="rounded-3xl border border-line bg-white px-4 py-3.5 shadow-card">
+  return <section className="rounded-xl border border-line bg-white px-4 py-3 transition-colors hover:border-slate-300">
     <div className="flex flex-wrap items-center justify-between gap-2">
       <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-        <h2 className="text-lg font-semibold text-ink">{resume.title}</h2>
+        <h2 className="text-base font-semibold text-ink">{resume.title}</h2>
         {isCurrent ? <Badge>当前主简历</Badge> : <Badge>简历版本</Badge>}
         <span className="text-sm text-slate-500">更新于 {formatDate(resume.updatedAt)}</span>
       </div>

@@ -4,15 +4,20 @@
 
 :root {
   color-scheme: light;
+  --page: #f9fafb;
+  --panel: #ffffff;
+  --line: #e5e7eb;
+  --ink: #111827;
+  --secondary: #4b5563;
+  --muted: #9ca3af;
+  --focus: rgba(15, 118, 110, 0.22);
 }
 
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at top left, rgba(15, 118, 110, 0.08), transparent 24%),
-    linear-gradient(180deg, #f8fbfc 0%, #eef4f7 100%);
-  color: #0f172a;
+  background: var(--page);
+  color: var(--ink);
   font-family: "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
 }
 
@@ -23,4 +28,62 @@ a {
 
 * {
   box-sizing: border-box;
+}
+
+/* Workspace primitives: keep the existing markup while giving every route one visual language. */
+button, input, select, textarea {
+  font: inherit;
+}
+
+button, input, select {
+  min-height: 36px;
+}
+
+input, select, textarea {
+  border-color: var(--line);
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 3px var(--focus);
+  outline: none;
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--muted);
+}
+
+.rounded-3xl { border-radius: 12px; }
+.rounded-2xl { border-radius: 10px; }
+.rounded-xl { border-radius: 8px; }
+.shadow-card { box-shadow: none; }
+
+::selection { background: #d1fae5; color: var(--ink); }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 999px; background: #d1d5db; background-clip: padding-box; }
+::-webkit-scrollbar-thumb:hover { background: #9ca3af; background-clip: padding-box; }
+
+/* Data tables share compact rows, subtle headers and a clear scan-line hover state. */
+main table thead th {
+  background: #f9fafb;
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+main table tbody tr {
+  height: 40px;
+  transition: background-color 120ms ease;
+}
+
+main table tbody tr:hover {
+  background: #f9fafb;
+}
+
+main table td {
+  padding-top: 6px;
+  padding-bottom: 6px;
 }

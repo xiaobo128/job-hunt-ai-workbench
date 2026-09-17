@@ -27,10 +27,10 @@ export default async function DashboardPage() {
     <PageShell
       title="秋招工作流"
       description="聚焦今天要推进的事项、近期安排与整体求职进度。"
-      action={<Link href="/notifications" className="inline-flex rounded-2xl bg-ink px-4 py-3 text-sm font-medium text-white">导入或修正通知</Link>}
+      action={<Link href="/notifications" className="inline-flex h-9 items-center rounded-lg bg-ink px-3.5 text-sm font-medium text-white transition-colors hover:bg-slate-800">导入或修正通知</Link>}
     >
       <Panel title="求职进度">
-        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <dl className="grid grid-cols-2 divide-x divide-y divide-line overflow-hidden rounded-lg border border-line sm:grid-cols-5 sm:divide-y-0">
           <ProgressItem label="待投递" value={progress.readyToApply} />
           <ProgressItem label="已投递" value={progress.applied} />
           <ProgressItem label="测评" value={progress.assessment} />
@@ -51,5 +51,5 @@ export default async function DashboardPage() {
 }
 
 function ProgressItem({ label, value }: { label: string; value: number }) {
-  return <div className="flex min-h-24 flex-col justify-between rounded-2xl bg-panel px-4 py-3"><dt className="text-sm text-slate-500">{label}</dt><dd className="text-3xl font-semibold tabular-nums text-ink">{value}</dd></div>;
+  return <div className="flex h-[76px] flex-col justify-between bg-white px-3 py-2.5"><dt className="text-xs text-slate-500">{label}</dt><dd className="text-2xl font-semibold tabular-nums text-ink">{value}</dd></div>;
 }

@@ -65,11 +65,11 @@ export function Sidebar({
   }, []);
 
   return (
-    <aside className="sticky top-4 hidden h-[calc(100vh-2rem)] w-[240px] shrink-0 rounded-3xl border border-line bg-white/80 p-4 shadow-card backdrop-blur md:flex md:flex-col">
-      <div className="mb-5 rounded-2xl bg-ink px-4 py-3 text-white">
-        <div className="text-[11px] font-medium uppercase tracking-[0.2em] text-white/60">个人求职管理</div>
-        <div className="mt-1 text-lg font-semibold leading-6">求职工作台</div>
-        <p className="mt-1 text-xs leading-5 text-white/70">收集、判断、投递和跟进。</p>
+    <aside className="sticky top-4 hidden h-[calc(100vh-2rem)] w-[232px] shrink-0 border-r border-line bg-white px-3 py-3 md:flex md:flex-col">
+      <div className="mb-4 px-2 py-2">
+        <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-slate-400">个人求职管理</div>
+        <div className="mt-1 text-base font-semibold leading-5 text-ink">求职工作台</div>
+        <p className="mt-1 text-xs leading-4 text-slate-500">收集、判断、投递和跟进。</p>
       </div>
 
       <nav aria-label="主要导航" className="space-y-1">
@@ -82,8 +82,8 @@ export function Sidebar({
               prefetch
               aria-current={active ? "page" : undefined}
               className={clsx(
-                "flex h-11 items-center gap-3 rounded-2xl px-3 text-sm font-medium transition",
-                active ? "bg-accent text-white shadow-sm" : "text-slate-600 hover:bg-slate-100 hover:text-ink"
+                "flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-sm font-medium transition-colors",
+                active ? "bg-slate-100 text-ink" : "text-slate-600 hover:bg-slate-50 hover:text-ink"
               )}
             >
               <SidebarIcon name={item.icon} />
@@ -95,21 +95,21 @@ export function Sidebar({
 
       <div ref={accountMenuRef} className="relative mt-auto border-t border-line pt-3">
         {accountMenuOpen ? (
-          <div role="menu" aria-label="账号菜单" className="absolute inset-x-0 bottom-full mb-2 rounded-2xl border border-line bg-white p-2 shadow-card">
+          <div role="menu" aria-label="账号菜单" className="absolute inset-x-0 bottom-full mb-2 rounded-xl border border-line bg-white p-1 shadow-sm">
             <Link
               href="/account"
               role="menuitem"
               prefetch
               onClick={() => setAccountMenuOpen(false)}
               className={clsx(
-                "flex rounded-xl px-3 py-2 text-sm font-medium transition",
+                "flex rounded-lg px-2.5 py-2 text-sm font-medium transition",
                 accountActive ? "bg-slate-100 text-ink" : "text-slate-600 hover:bg-slate-100 hover:text-ink"
               )}
             >
               设置
             </Link>
             <form action={logoutUser}>
-              <button role="menuitem" className="flex w-full rounded-xl px-3 py-2 text-left text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-ink">
+              <button role="menuitem" className="flex w-full rounded-lg px-2.5 py-2 text-left text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-ink">
                 退出登录
               </button>
             </form>
@@ -121,7 +121,7 @@ export function Sidebar({
           aria-haspopup="menu"
           onClick={() => setAccountMenuOpen((open) => !open)}
           className={clsx(
-            "flex w-full items-center justify-between rounded-2xl px-3 py-2.5 text-left transition",
+            "flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left transition",
             accountActive || accountMenuOpen ? "bg-slate-100 text-ink" : "text-slate-500 hover:bg-slate-100 hover:text-ink"
           )}
         >

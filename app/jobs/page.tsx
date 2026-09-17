@@ -40,7 +40,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
     searchParams
   ]);
 
-  return <PageShell title="岗位工作台" description="围绕岗位、进度、事件和下一步，持续推进你的求职。" action={<div className="flex items-center gap-3"><a href="/api/jobs/export" className="inline-flex rounded-2xl border border-line px-4 py-3 text-sm font-medium text-ink">导出 Excel</a><AddJobDialog /></div>}>
+  return <PageShell title="岗位工作台" description="围绕岗位、进度、事件和下一步，持续推进你的求职。" action={<div className="flex items-center gap-2"><a href="/api/jobs/export" className="inline-flex h-9 items-center rounded-lg border border-line bg-white px-3.5 text-sm font-medium text-ink transition-colors hover:bg-slate-50">导出 Excel</a><AddJobDialog /></div>}>
     <JobsListClient jobs={jobs} resumes={resumes} initialView={view === "board" ? "board" : "table"} initialQuery={q || ""} initialStatus={status || "ALL"} initialCity={city || "ALL"} initialSource={source || "ALL"} />
   </PageShell>;
 }

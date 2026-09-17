@@ -8,16 +8,16 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#0f172a",
+        ink: "#111827",
         panel: "#f8fafc",
-        line: "#dbe4ee",
+        line: "#e5e7eb",
         accent: "#0f766e",
-        accentSoft: "#dff7f3",
+        accentSoft: "#ecfdf5",
         warn: "#b45309",
         danger: "#b91c1c"
       },
       boxShadow: {
-        card: "0 8px 24px rgba(15, 23, 42, 0.06)"
+        card: "0 1px 2px rgba(17, 24, 39, 0.03)"
       }
     }
   },

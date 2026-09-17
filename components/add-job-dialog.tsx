@@ -81,7 +81,7 @@ export function AddJobDialog() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-10 items-center justify-center rounded-xl bg-ink px-4 text-sm font-medium text-white"
+        className="inline-flex h-9 items-center justify-center rounded-lg bg-ink px-3.5 text-sm font-medium text-white transition-colors hover:bg-slate-800"
       >
         导入岗位
       </button>
@@ -90,7 +90,7 @@ export function AddJobDialog() {
         ? createPortal(
             <div className="fixed inset-0 z-[100] bg-slate-950/30 p-4 backdrop-blur-sm sm:p-6">
               <div className="flex min-h-full items-center justify-center">
-                <div className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl border border-line bg-white p-5 shadow-card sm:max-h-[calc(100vh-3rem)]">
+                <div className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-xl border border-line bg-white p-5 shadow-lg sm:max-h-[calc(100vh-3rem)]">
                   <div className="flex items-start justify-between gap-4">
                     <div className="text-lg font-semibold text-ink">导入岗位</div>
                     <button
