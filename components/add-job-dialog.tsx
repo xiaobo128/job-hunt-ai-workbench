@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useFormStatus } from "react-dom";
 import { createJobLead } from "@/app/actions";
+import { ExcelJobImport } from "@/components/excel-job-import";
 
 function inferSourceType(files: File[], sourceUrl: string, rawContent: string) {
   if (files.some((file) => file.type.startsWith("image/"))) {
@@ -26,6 +27,7 @@ export function AddJobDialog() {
   const [files, setFiles] = useState<File[]>([]);
   const [sourceUrl, setSourceUrl] = useState("");
   const [rawContent, setRawContent] = useState("");
+  const [mode, setMode] = useState<"single" | "excel">("single");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const sourceType = useMemo(() => inferSourceType(files, sourceUrl, rawContent), [files, sourceUrl, rawContent]);
@@ -101,7 +103,12 @@ export function AddJobDialog() {
                     </button>
                   </div>
 
-                  <form action={createJobLead} className="mt-5 space-y-4" encType="multipart/form-data">
+                  <div className="mt-4 grid grid-cols-2 rounded-xl border border-line bg-panel p-1 text-sm">
+                    <button type="button" onClick={() => setMode("single")} className={mode === "single" ? "rounded-lg bg-white py-2 font-medium text-ink shadow-sm" : "py-2 text-slate-500"}>单个导入</button>
+                    <button type="button" onClick={() => setMode("excel")} className={mode === "excel" ? "rounded-lg bg-white py-2 font-medium text-ink shadow-sm" : "py-2 text-slate-500"}>Excel 批量导入</button>
+                  </div>
+
+                  {mode === "excel" ? <ExcelJobImport onClose={() => setOpen(false)} /> : <form action={createJobLead} className="mt-5 space-y-4" encType="multipart/form-data">
                     <input type="hidden" name="sourceType" value={sourceType} />
                     <input
                       ref={fileInputRef}
@@ -182,7 +189,7 @@ export function AddJobDialog() {
                       </button>
                       <SubmitButton />
                     </div>
-                  </form>
+                  </form>}
                 </div>
               </div>
             </div>,

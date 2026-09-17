@@ -2,6 +2,7 @@
 
 import path from "path";
 import { readFile, writeFile } from "fs/promises";
+import ExcelJS from "exceljs";
 import {
   AgentRunKind,
   ApplicationStage,
@@ -45,6 +46,137 @@ import { saveUpload } from "@/lib/storage";
 import { generateApiTokenValue, sha256 } from "@/lib/agent-auth";
 import { triggerOutboundWebhook } from "@/lib/agent-webhooks";
 import { isAssessmentEventType, isInterviewEventType } from "@/lib/event-types";
+
+const EXCEL_IMPORT_MAX_BYTES = 5 * 1024 * 1024;
+const excelHeaderAliases: Record<string, string[]> = {
+  company: ["公司", "公司名称", "企业", "企业名称"],
+  role: ["岗位", "岗位名称", "职位", "职位名称", "职位名"],
+  city: ["base", "工作地点", "地点", "城市", "工作城市"],
+  stage: ["进度", "状态", "投递状态", "申请状态"],
+  appliedAt: ["投递日期", "申请日期", "网申日期"],
+  applyUrl: ["投递链接", "申请链接", "岗位链接", "职位链接", "官网链接", "url"],
+  source: ["来源", "岗位来源", "招聘来源", "渠道"],
+  note: ["备注", "note", "notes", "说明"]
+};
+
+type ExcelImportField = keyof typeof excelHeaderAliases;
+
+function normalizeExcelHeader(value: string) {
+  return value.replace(/[\s：:]/g, "").toLowerCase();
+}
+
+function excelCellText(value: ExcelJS.CellValue | undefined): string {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  if (typeof value === "object") {
+    if ("result" in value && value.result !== undefined && value.result !== null) return String(value.result).trim();
+    if ("text" in value) return String(value.text).trim();
+    if ("richText" in value) return value.richText.map((item) => item.text).join("").trim();
+    if ("hyperlink" in value) return String(value.hyperlink).trim();
+  }
+  return String(value).trim();
+}
+
+function inferExcelMapping(headers: string[]) {
+  const mapping: Record<string, number> = {};
+  headers.forEach((header, index) => {
+    const normalized = normalizeExcelHeader(header);
+    for (const [field, aliases] of Object.entries(excelHeaderAliases)) {
+      if (!(field in mapping) && aliases.some((alias) => normalizeExcelHeader(alias) === normalized)) {
+        mapping[field] = index;
+        break;
+      }
+    }
+  });
+  return mapping as Partial<Record<ExcelImportField, number>>;
+}
+
+function mapExcelStage(value: string): ApplicationStage {
+  const normalized = value.replace(/\s/g, "").toLowerCase();
+  if (/待投递|未投递|准备投递/.test(normalized)) return ApplicationStage.READY_TO_APPLY;
+  if (/已投递|已申请|已网申/.test(normalized)) return ApplicationStage.APPLIED;
+  if (/测评|笔试/.test(normalized)) return ApplicationStage.ASSESSMENT;
+  if (/ai面|一面/.test(normalized)) return ApplicationStage.FIRST_INTERVIEW;
+  if (/二面/.test(normalized)) return ApplicationStage.SECOND_INTERVIEW;
+  if (/三面/.test(normalized)) return ApplicationStage.THIRD_INTERVIEW;
+  if (/终面/.test(normalized)) return ApplicationStage.FINAL_INTERVIEW;
+  if (/面试/.test(normalized)) return ApplicationStage.INTERVIEW;
+  if (/谈薪/.test(normalized)) return ApplicationStage.NEGOTIATION;
+  if (/offer|已录用|录用/.test(normalized)) return ApplicationStage.OFFER;
+  if (/拒绝|挂|已结束|流程结束/.test(normalized)) return ApplicationStage.CLOSED;
+  return ApplicationStage.READY_TO_APPLY;
+}
+
+function parseExcelDate(value: string) {
+  const text = value.trim();
+  if (!text) return null;
+  if (/^\d+(\.\d+)?$/.test(text) && Number(text) >= 1 && Number(text) <= 100000) {
+    const serialDate = new Date(Date.UTC(1899, 11, 30) + Number(text) * 86400000);
+    return Number.isNaN(serialDate.getTime()) ? null : serialDate;
+  }
+  const monthDay = text.match(/^(\d{1,2})[-.]?(\d{1,2})$/);
+  if (monthDay) {
+    const date = new Date(new Date().getFullYear(), Number(monthDay[1]) - 1, Number(monthDay[2]));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  const direct = new Date(text.replace(/年|\//g, "-").replace(/月/g, "-").replace(/日/g, ""));
+  if (!Number.isNaN(direct.getTime()) && /\d/.test(text)) return direct;
+  return null;
+}
+
+export async function readExcelJobImport(file: File, sheetName?: string) {
+  await requireSessionUser();
+  if (!file || file.size === 0 || file.size > EXCEL_IMPORT_MAX_BYTES || !/\.xlsx$/i.test(file.name)) {
+    throw new Error("请上传不超过 5MB 的 .xlsx 文件");
+  }
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(await file.arrayBuffer());
+  const sheetNames = workbook.worksheets.map((sheet) => sheet.name);
+  const sheet = workbook.getWorksheet(sheetName || sheetNames[0]);
+  if (!sheet) throw new Error("未找到所选工作表");
+  const headerRow = sheet.getRow(1);
+  const headers: string[] = Array.from({ length: headerRow.cellCount }, (_, index) => excelCellText(headerRow.getCell(index + 1).value) || `列 ${index + 1}`);
+  const rows = sheet.getRows(2, Math.min(Math.max(sheet.rowCount - 1, 0), 1000))?.map((row) => ({
+    rowNumber: row.number,
+    values: headers.map((_, index): string => excelCellText(row.getCell(index + 1).value))
+  })).filter((row) => row.values.some(Boolean)) ?? [];
+  const mapping = inferExcelMapping(headers);
+  const existing = await prisma.jobLead.findMany({ where: { ownerId: (await requireSessionUser()).id }, select: { companyName: true, roleTitle: true, sourceUrl: true } });
+  const duplicateRowNumbers = rows.filter((row) => {
+    const company = mapping.company === undefined ? "" : row.values[mapping.company]?.trim();
+    const role = mapping.role === undefined ? "" : row.values[mapping.role]?.trim();
+    const url = mapping.applyUrl === undefined ? "" : row.values[mapping.applyUrl]?.trim();
+    return Boolean(company && role && existing.some((job) => job.companyName === company && job.roleTitle === role && (!url || !job.sourceUrl || job.sourceUrl === url)));
+  }).map((row) => row.rowNumber);
+  return { sheetNames, selectedSheet: sheet.name, headers, rows, mapping, duplicateRowNumbers };
+}
+
+export async function importExcelJobRows(payload: string) {
+  const user = await requireSessionUser();
+  const parsed: unknown = JSON.parse(payload);
+  if (!Array.isArray(parsed) || parsed.length > 1000) throw new Error("导入数据无效");
+  const rows = parsed.map((item) => typeof item === "object" && item !== null ? item as Record<string, unknown> : null).filter(Boolean) as Record<string, unknown>[];
+  const existing = await prisma.jobLead.findMany({ where: { ownerId: user.id }, select: { companyName: true, roleTitle: true, sourceUrl: true } });
+  let created = 0; let skipped = 0; const failures: string[] = [];
+  for (const row of rows) {
+    const rowNumber = Number(row.rowNumber) || 0;
+    const company = String(row.company || "").trim(); const role = String(row.role || "").trim();
+    if (!company || !role) { failures.push(`第 ${rowNumber} 行：缺少${!company ? "公司名称" : "岗位名称"}`); continue; }
+    const applyUrl = String(row.applyUrl || "").trim() || null;
+    const duplicate = existing.some((job) => job.companyName === company && job.roleTitle === role && (!applyUrl || !job.sourceUrl || job.sourceUrl === applyUrl));
+    if (duplicate && !row.importDuplicate) { skipped++; continue; }
+    const appliedAt = parseExcelDate(String(row.appliedAt || ""));
+    try {
+      const stage = mapExcelStage(String(row.stage || ""));
+      await prisma.$transaction(async (tx) => {
+        await tx.jobLead.create({ data: { ownerId: user.id, needsReview: false, reviewedAt: new Date(), sourceType: SourceType.MANUAL, sourceName: String(row.source || "").trim() || null, sourceUrl: applyUrl, companyName: company, roleTitle: role, city: String(row.city || "").trim() || null, skills: "[]", responsibilities: "[]", requirements: "[]", rawContent: "", status: stage, application: { create: { currentStage: stage, appliedAt, note: String(row.note || "").trim() || null, submissionChannel: String(row.source || "").trim() || null } } } });
+      });
+      created++;
+    } catch { failures.push(`第 ${rowNumber} 行：保存失败`); }
+  }
+  revalidatePath("/"); revalidatePath("/jobs"); revalidatePath("/board");
+  return { created, skipped, failures };
+}
 
 async function updateEnvVariable(variable: string, value: string) {
   const envPath = path.join(process.cwd(), ".env.local");
