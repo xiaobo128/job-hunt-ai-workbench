@@ -36,6 +36,7 @@ import {
 import { INITIAL_RESUME_LINK_VARIANT_NOTE } from "@/lib/resume-linking";
 import { extractStoredUploadText, isExtractionPlaceholder, persistUpload } from "@/lib/uploads";
 import { orchestrateResumeParse } from "@/lib/resume-parsing/orchestrator";
+import { isResumeParseStale } from "@/lib/resume-parsing/stale";
 import { ResumeDocumentSchema } from "@/lib/resume-parsing/core";
 import { confirmResumeParse, ResumeParseConfirmationError } from "@/lib/resume-parsing/confirmation";
 import { loadConfirmedResumeDocument } from "@/lib/resume-parsing/confirmed";
@@ -1116,33 +1117,46 @@ export async function retryResumeAssetExtraction(formData: FormData) {
 
 export async function retryResumeParse(formData: FormData) {
   const user = await requireSessionUser();
-  const failedParseId = formData.get("failedParseId") as string;
+  const parseId = formData.get("parseId") as string;
 
-  if (!failedParseId) {
+  if (!parseId) {
     return;
   }
 
-  const failedParse = await prisma.resumeParse.findFirst({
+  const previousParse = await prisma.resumeParse.findFirst({
     where: {
-      id: failedParseId,
-      status: "FAILED",
+      id: parseId,
+      status: { in: ["FAILED", "PROCESSING"] },
       resume: { ownerId: user.id }
     },
     select: {
+      id: true,
+      status: true,
+      updatedAt: true,
       resumeId: true,
       resumeAssetId: true,
       resumeAsset: { select: { id: true, resumeId: true } }
     }
   });
 
-  if (!failedParse?.resumeAsset || failedParse.resumeAsset.resumeId !== failedParse.resumeId) {
+  if (!previousParse?.resumeAsset || previousParse.resumeAsset.resumeId !== previousParse.resumeId) {
     return;
   }
 
+  if (previousParse.status === "PROCESSING" && !isResumeParseStale(previousParse.updatedAt)) {
+    return;
+  }
+
+  const superseded = await prisma.resumeParse.updateMany({
+    where: { id: previousParse.id, status: previousParse.status },
+    data: { status: "SUPERSEDED" }
+  });
+  if (superseded.count !== 1) return;
+
   await orchestrateResumeParse({
     userId: user.id,
-    resumeId: failedParse.resumeId,
-    resumeAssetId: failedParse.resumeAssetId
+    resumeId: previousParse.resumeId,
+    resumeAssetId: previousParse.resumeAssetId
   });
 
   revalidatePath("/resumes");

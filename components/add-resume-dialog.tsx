@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, useFormStatus } from "react-dom";
 import { createResume } from "@/app/actions";
 
 export function AddResumeDialog() {
@@ -22,6 +22,7 @@ export function AddResumeDialog() {
             <div className="fixed inset-0 z-[100] bg-slate-950/30 p-4 backdrop-blur-sm sm:p-6">
               <div className="flex min-h-full items-center justify-center">
                 <div className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl border border-line bg-white p-5 shadow-card sm:max-h-[calc(100vh-3rem)]">
+                  <form action={createResume}>
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <h2 className="text-lg font-semibold text-ink">新增简历版本</h2>
@@ -29,17 +30,10 @@ export function AddResumeDialog() {
                         上传新的简历版本，并补充候选人资料说明。
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setOpen(false)}
-                      aria-label="关闭"
-                      className="flex h-10 w-10 items-center justify-center rounded-2xl border border-line text-xl leading-none text-slate-500"
-                    >
-                      x
-                    </button>
+                    <AddResumeDialogCloseButton onClose={() => setOpen(false)} />
                   </div>
 
-                  <form action={createResume} className="mt-5 space-y-4">
+                  <div className="mt-5 space-y-4">
                     <label className="block text-sm text-slate-600">
                       简历名称
                       <input
@@ -74,16 +68,8 @@ export function AddResumeDialog() {
                       />
                     </label>
 
-                    <div className="flex justify-end gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setOpen(false)}
-                        className="rounded-2xl border border-line px-4 py-3 text-sm font-medium text-ink"
-                      >
-                        取消
-                      </button>
-                      <button className="rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white">保存简历版本</button>
-                    </div>
+                    <AddResumeDialogActions onClose={() => setOpen(false)} />
+                  </div>
                   </form>
                 </div>
               </div>
@@ -92,5 +78,41 @@ export function AddResumeDialog() {
           )
         : null}
     </>
+  );
+}
+
+function AddResumeDialogCloseButton({ onClose }: { onClose: () => void }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="button"
+      onClick={onClose}
+      disabled={pending}
+      aria-label="关闭"
+      className="flex h-10 w-10 items-center justify-center rounded-2xl border border-line text-xl leading-none text-slate-500 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      x
+    </button>
+  );
+}
+
+function AddResumeDialogActions({ onClose }: { onClose: () => void }) {
+  const { pending } = useFormStatus();
+
+  return (
+    <div className="flex justify-end gap-3">
+      <button
+        type="button"
+        onClick={onClose}
+        disabled={pending}
+        className="rounded-2xl border border-line px-4 py-3 text-sm font-medium text-ink disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        取消
+      </button>
+      <button disabled={pending} className="rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white disabled:cursor-wait disabled:opacity-70">
+        {pending ? "正在上传..." : "保存简历版本"}
+      </button>
+    </div>
   );
 }

@@ -6,6 +6,7 @@ import { RetryResumeParseForm } from "@/components/retry-resume-parse-form";
 import { ResumeNoteInline } from "@/components/resume-note-inline";
 import { formatDate } from "@/lib/format";
 import { getResumes } from "@/lib/queries";
+import { isResumeParseStale } from "@/lib/resume-parsing/stale";
 
 export default async function ResumesPage() {
   const resumes = await getResumes();
@@ -43,16 +44,17 @@ function ResumeVersionCard({ resume, isCurrent }: { resume: Awaited<ReturnType<t
   </section>;
 }
 
-function ResumeParseStatus({ confirmedParse, parse }: { confirmedParse: { id: string } | null; parse: { id: string; status: string; errorMessage: string | null } | undefined }) {
+function ResumeParseStatus({ confirmedParse, parse }: { confirmedParse: { id: string } | null; parse: { id: string; status: string; errorMessage: string | null; updatedAt: Date } | undefined }) {
   if (confirmedParse) return <><Badge>已确认</Badge><span className="text-sm text-slate-500">已确认事实，可作为后续岗位准备依据</span></>;
   if (parse?.status === "NEEDS_REVIEW") return <><Badge>待确认</Badge><span className="text-sm text-slate-500">尚未确认候选人资料</span></>;
   if (parse?.status === "FAILED") return <><Badge>需要重新处理</Badge><span className="max-w-64 truncate text-sm text-slate-500">{parse.errorMessage || "候选人资料解析失败"}</span></>;
+  if (parse?.status === "PROCESSING" && isResumeParseStale(parse.updatedAt)) return <><Badge>解析可能已中断</Badge><span className="text-sm text-slate-500">可重新处理这份已上传的简历</span></>;
   return <span className="text-sm text-slate-500">{parse ? "候选人资料正在准备中" : "未生成候选人资料"}</span>;
 }
 
-function ResumeParseAction({ resumeId, confirmedParse, parse }: { resumeId: string; confirmedParse: { id: string } | null; parse: { id: string; status: string; errorMessage: string | null } | undefined }) {
+function ResumeParseAction({ resumeId, confirmedParse, parse }: { resumeId: string; confirmedParse: { id: string } | null; parse: { id: string; status: string; errorMessage: string | null; updatedAt: Date } | undefined }) {
   if (confirmedParse) return <a href={`/resumes/${resumeId}/parses/${confirmedParse.id}/review`} className="shrink-0 text-sm font-medium text-accent underline-offset-4 hover:underline">查看资料</a>;
   if (parse?.status === "NEEDS_REVIEW") return <a href={`/resumes/${resumeId}/parses/${parse.id}/review`} className="shrink-0 text-sm font-medium text-accent underline-offset-4 hover:underline">确认候选人资料</a>;
-  if (parse?.status === "FAILED") return <div className="shrink-0"><RetryResumeParseForm failedParseId={parse.id} /></div>;
+  if (parse?.status === "FAILED" || (parse?.status === "PROCESSING" && isResumeParseStale(parse.updatedAt))) return <div className="shrink-0"><RetryResumeParseForm parseId={parse.id} /></div>;
   return <span className="shrink-0 text-sm text-slate-400">{parse ? "资料准备中" : "暂无可确认资料"}</span>;
 }

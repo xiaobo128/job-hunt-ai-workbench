@@ -36,6 +36,7 @@ export async function orchestrateResumeParse({
   resumeAssetId,
   provider = new TextInResumeExtractionProvider()
 }: OrchestrateResumeParseInput) {
+  const startedAt = Date.now();
   const asset = await prisma.resumeAsset.findFirst({
     where: {
       id: resumeAssetId,
@@ -71,26 +72,38 @@ export async function orchestrateResumeParse({
     },
     select: { id: true }
   });
+  const logContext = {
+    resumeId: asset.resumeId,
+    resumeAssetId: asset.id,
+    parseAttemptId: attempt.id,
+    provider: "textin"
+  };
+  console.info("resume_parse", { ...logContext, stage: "parse_created" });
 
   try {
     let bytes: Buffer;
     try {
+      console.info("resume_parse", { ...logContext, stage: "asset_read_started" });
       bytes = await readStoredUploadBytes(asset.fileUrl);
+      console.info("resume_parse", { ...logContext, stage: "asset_read_finished", elapsedMs: Date.now() - startedAt });
     } catch {
       throw new ResumeParseFailure("ASSET_READ_FAILED");
     }
 
+    console.info("resume_parse", { ...logContext, stage: "provider_started", elapsedMs: Date.now() - startedAt });
     const result = await provider.extract({ bytes, fileName: asset.artifactName });
+    console.info("resume_parse", { ...logContext, stage: "provider_finished", elapsedMs: Date.now() - startedAt });
 
     let document;
     try {
       document = normalizeExtractedResume(result.extraction);
       document = ResumeDocumentSchema.parse(document);
+      console.info("resume_parse", { ...logContext, stage: "normalization_finished", elapsedMs: Date.now() - startedAt });
     } catch {
       throw new ResumeParseFailure("NORMALIZATION_FAILED");
     }
 
-    return await prisma.resumeParse.update({
+    const parse = await prisma.resumeParse.update({
       where: { id: attempt.id },
       data: {
         status: "NEEDS_REVIEW",
@@ -102,9 +115,12 @@ export async function orchestrateResumeParse({
         confirmedAt: null
       }
     });
+    console.info("resume_parse", { ...logContext, stage: "parse_needs_review", elapsedMs: Date.now() - startedAt });
+    return parse;
   } catch (error) {
     const failure = getSafeFailure(error);
-    return prisma.resumeParse.update({
+    const errorName = error instanceof Error ? error.name : "UnknownError";
+    const parse = await prisma.resumeParse.update({
       where: { id: attempt.id },
       data: {
         status: "FAILED",
@@ -116,6 +132,14 @@ export async function orchestrateResumeParse({
         confirmedAt: null
       }
     });
+    console.error("resume_parse", {
+      ...logContext,
+      stage: "parse_failed",
+      safeErrorCode: failure.code,
+      errorName,
+      elapsedMs: Date.now() - startedAt
+    });
+    return parse;
   }
 }
 
