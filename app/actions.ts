@@ -1163,19 +1163,19 @@ export async function saveResumeParseReview(
   const documentJson = formData.get("documentJson");
 
   if (typeof resumeId !== "string" || typeof parseId !== "string" || typeof documentJson !== "string") {
-    return { error: "缺少待保存的结构化简历数据。" };
+    return { error: "缺少待保存的简历信息。" };
   }
 
   let document: unknown;
   try {
     document = JSON.parse(documentJson);
   } catch {
-    return { error: "结构化简历数据格式无效，请刷新页面后重试。" };
+    return { error: "简历信息格式无效，请刷新页面后重试。" };
   }
 
   const validatedDocument = ResumeDocumentSchema.safeParse(document);
   if (!validatedDocument.success) {
-    return { error: "结构化字段未通过校验，请补全必填标题和条目内容。" };
+    return { error: "简历信息未通过校验，请补全必填标题和条目内容。" };
   }
 
   const parse = await prisma.resumeParse.findFirst({
@@ -1195,7 +1195,7 @@ export async function saveResumeParseReview(
 
   // Require every hop in Parse -> ResumeAsset -> Resume -> current user to match.
   if (!parse || parse.resumeId !== resumeId || parse.resumeAsset.resumeId !== resumeId) {
-    return { error: "未找到可编辑的结构化解析记录。" };
+    return { error: "未找到可编辑的简历解析结果。" };
   }
 
   await prisma.resumeParse.update({
@@ -1239,7 +1239,7 @@ export async function confirmResumeParseReview(
   const parseId = formData.get("parseId");
 
   if (typeof parseId !== "string" || !parseId) {
-    return { error: "缺少待确认的结构化解析记录。" };
+    return { error: "缺少待确认的简历解析结果。" };
   }
 
   try {
@@ -2362,9 +2362,9 @@ export async function reviseTailorDraftRun(formData: FormData) {
 }
 
 export async function createNotificationEvent(
-  _previousState: { status: "idle" | "success" | "error"; message?: string },
+  _previousState: { status: "idle" | "success" | "error"; message?: string; eventId?: string; applicationId?: string },
   formData: FormData
-): Promise<{ status: "idle" | "success" | "error"; message?: string }> {
+): Promise<{ status: "idle" | "success" | "error"; message?: string; eventId?: string; applicationId?: string }> {
   const user = await requireSessionUser();
   const applicationId = ((formData.get("applicationId") as string | null) ?? "").trim();
   const requestedEventType = (formData.get("eventType") as EventType | null) ?? "NOTE";
@@ -2436,7 +2436,7 @@ export async function createNotificationEvent(
 
     const title = requestedTitle || content.replace(/\s+/g, " ").trim().slice(0, 100) || "导入通知";
 
-    await prisma.event.create({
+    const event = await prisma.event.create({
       data: {
         applicationId: application.id,
         eventType,
@@ -2458,7 +2458,7 @@ export async function createNotificationEvent(
     revalidatePath(`/notifications/${application.id}`);
     revalidatePath(`/jobs/${application.jobLeadId}`);
 
-    return { status: "success" };
+    return { status: "success", eventId: event.id, applicationId: application.id };
   } catch (error) {
     console.error("Unable to create notification event", error);
     return { status: "error", message: "保存通知失败，请检查附件或稍后重试。" };
@@ -2481,6 +2481,8 @@ export async function updateNotificationEvent(
   const title = ((formData.get("title") as string | null) ?? "").trim();
   const requestedEventType = formData.get("eventType") as EventType | null;
   const eventType = requestedEventType && Object.values(EventType).includes(requestedEventType) ? requestedEventType : null;
+  const requestedStatus = formData.get("status") as EventStatus | null;
+  const status = requestedStatus && Object.values(EventStatus).includes(requestedStatus) ? requestedStatus : null;
   const contentInput = formData.get("content");
   const requirementsText = ((formData.get("requirementsText") as string | null) ?? "").trim();
   const parseDateField = (field: string) => {
@@ -2500,7 +2502,7 @@ export async function updateNotificationEvent(
   const relativeValidityValueRaw = ((formData.get("relativeValidityValue") as string | null) ?? "").trim();
   const relativeValidityUnit = ((formData.get("relativeValidityUnit") as string | null) ?? "").trim();
 
-  if (!eventId || !applicationId || !title || !eventType) {
+  if (!eventId || !applicationId || !title || !eventType || !status) {
     return { status: "error", message: "请填写关联岗位、通知类型和标题。" };
   }
 
@@ -2565,6 +2567,7 @@ export async function updateNotificationEvent(
       applicationId: targetApplication.id,
       title,
       eventType,
+      status,
       eventTime: eventTime.value,
       windowStartAt: windowStartAt.value,
       deadlineAt: deadlineAt.value,

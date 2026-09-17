@@ -17,6 +17,7 @@ export type NotificationEventForEdit = {
   id: string;
   applicationId: string;
   eventType: string;
+  status?: "ACTIVE" | "COMPLETED" | "IGNORED";
   title: string;
   eventTime: string | null;
   windowStartAt: string | null;
@@ -68,7 +69,7 @@ export function NotificationEventEditDialog({
           <header className="flex items-start justify-between gap-4">
             <div>
               <div className="text-lg font-semibold text-ink" id="edit-notification-title">编辑通知</div>
-              <p className="mt-1 text-sm text-slate-500">修改关联、结构化字段或保存的原始邮件正文。</p>
+              <p className="mt-1 text-sm text-slate-500">修改关联、通知摘要或保存的原始邮件正文。</p>
             </div>
             <button type="button" onClick={onClose} aria-label="关闭" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-line text-xl leading-none text-slate-500">×</button>
           </header>
@@ -80,6 +81,13 @@ export function NotificationEventEditDialog({
               关联岗位
               <select name="applicationId" defaultValue={event.applicationId} className="mt-2 w-full rounded-2xl border border-line bg-panel px-4 py-3 outline-none">
                 {applications.map((application) => <option key={application.id} value={application.id}>{application.label}</option>)}
+              </select>
+            </label>
+
+            <label className="block text-sm text-slate-600">
+              状态
+              <select name="status" defaultValue={event.status ?? "ACTIVE"} className="mt-2 w-full rounded-2xl border border-line bg-panel px-4 py-3 outline-none">
+                <option value="ACTIVE">待处理</option><option value="COMPLETED">已完成</option><option value="IGNORED">已忽略</option>
               </select>
             </label>
 
@@ -104,7 +112,7 @@ export function NotificationEventEditDialog({
 
             <label className="block text-sm text-slate-600">
               原始邮件正文
-              <p className="mt-1 text-xs leading-5 text-slate-500">编辑原文不会自动重新解析结构化字段。</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">编辑原文不会自动更新通知摘要。</p>
               <textarea name="content" rows={12} defaultValue={event.content} className="mt-2 w-full rounded-3xl border border-line bg-panel px-4 py-3 outline-none" />
             </label>
 

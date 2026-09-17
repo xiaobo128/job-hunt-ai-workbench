@@ -25,9 +25,9 @@ export function AddNotificationDialog({
   const router = useRouter();
 
   useEffect(() => {
-    if (state.status === "success") {
+    if (state.status === "success" && state.eventId && state.applicationId) {
       setOpen(false);
-      router.refresh();
+      router.push(`/notifications/${state.applicationId}/review/${state.eventId}`);
     }
   }, [router, state]);
 

@@ -89,7 +89,7 @@ export default async function ResumeParseReviewPage({
             />
           ) : (
             <div className="mt-4 rounded-2xl bg-panel p-5 text-sm leading-6 text-slate-600">
-              此文件格式暂不支持页内预览。请下载原文件，与右侧结构化字段逐项核对。
+              此文件格式暂不支持页内预览。请下载原文件，与右侧简历信息逐项核对。
             </div>
           )}
         </section>

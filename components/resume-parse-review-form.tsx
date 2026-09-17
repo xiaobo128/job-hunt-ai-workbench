@@ -30,8 +30,8 @@ export function ResumeParseReviewForm({ resumeId, parseId, status, document: ini
 
   return <div className="space-y-5 rounded-3xl border border-line bg-white p-4 shadow-card">
     <div className="xl:sticky xl:top-0 xl:z-10 xl:-mx-4 xl:-mt-4 xl:bg-white xl:px-4 xl:pb-4 xl:pt-4">
-      <h2 className="font-semibold text-ink">结构化字段</h2>
-      <p className="mt-1 text-sm text-slate-500">{editable ? "核对并修改提取结果；右上角“保存并确认”会保存全部字段并完成确认。" : "该版本已经锁定，字段不可修改。"}</p>
+      <h2 className="font-semibold text-ink">简历信息</h2>
+      <p className="mt-1 text-sm text-slate-500">{editable ? "系统已解析简历内容，请核对后确认；右上角“保存并确认”会保存全部信息。" : "该版本已经锁定，信息不可修改。"}</p>
     </div>
     <form ref={formRef} id={reviewFormId} action={confirmFormAction} className="contents">
       <input type="hidden" name="resumeId" value={resumeId} />
@@ -92,7 +92,7 @@ function ResumeReviewLeaveGuard({ formRef, submit, pending, error, confirmed }: 
   return <div role="dialog" aria-modal="true" aria-labelledby="resume-review-leave-title" className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm">
     <div className="w-full max-w-md rounded-3xl border border-line bg-white p-5 shadow-card">
       <h2 id="resume-review-leave-title" className="text-lg font-semibold text-ink">这份简历还没有完成确认</h2>
-      <p className="mt-2 text-sm leading-6 text-slate-600">请确认结构化字段与原简历一致。未确认的解析结果不会作为最终候选人资料使用。</p>
+      <p className="mt-2 text-sm leading-6 text-slate-600">请确认简历信息与原简历一致。未确认的解析结果不会作为最终候选人资料使用。</p>
       {error ? <p role="alert" className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
       <div className="mt-5 flex flex-wrap justify-end gap-3">
         <button type="button" disabled={pending} onClick={() => setDestination(null)} className="rounded-xl border border-line px-4 py-2.5 text-sm font-medium text-ink">继续检查</button>
