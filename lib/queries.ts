@@ -141,7 +141,6 @@ export async function getDashboardData() {
             relativeValidityMinutes: true,
             status: true,
             createdAt: true,
-            title: true,
             application: { select: { jobLead: { select: { id: true, companyName: true, roleTitle: true } } } }
           },
           orderBy: [{ createdAt: "asc" }, { id: "asc" }]
@@ -219,6 +218,7 @@ export async function getDashboardData() {
       applicationId: event.applicationId,
       sourceType: "EVENT",
       eventId: event.id,
+      eventType: event.eventType,
       companyName: job.companyName,
       roleTitle: job.roleTitle,
       stage: event.application.currentStage,
@@ -242,6 +242,7 @@ export async function getDashboardData() {
       applicationId: event.applicationId,
       sourceType: "EVENT",
       eventId: event.id,
+      eventType: event.eventType,
       companyName: job.companyName,
       roleTitle: job.roleTitle,
       stage: event.application.currentStage,
@@ -288,6 +289,7 @@ export async function getDashboardData() {
       applicationId: event.applicationId,
       sourceType: "EVENT",
       eventId: event.id,
+      eventType: event.eventType,
       companyName: job.companyName,
       roleTitle: job.roleTitle,
       stage: event.application.currentStage,

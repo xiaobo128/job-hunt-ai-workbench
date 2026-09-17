@@ -14,13 +14,13 @@ export default async function DashboardPage() {
     applicationId: event.applicationId,
     eventType: event.eventType,
     status: event.status,
-    title: event.title,
     eventTime: event.eventTime?.toISOString() ?? null,
     windowStartAt: event.windowStartAt?.toISOString() ?? null,
     deadlineAt: event.deadlineAt?.toISOString() ?? null,
     receivedAt: event.receivedAt?.toISOString() ?? null,
     relativeValidityMinutes: event.relativeValidityMinutes,
-    companyName: event.application.jobLead.companyName
+    companyName: event.application.jobLead.companyName,
+    roleTitle: event.application.jobLead.roleTitle
   }));
 
   return (
@@ -39,8 +39,8 @@ export default async function DashboardPage() {
         </dl>
       </Panel>
 
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
-        <Panel title="日历" className="min-w-0">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(340px,1fr)]">
+        <Panel title="日历" className="min-w-0 p-4">
           <DashboardCalendar initialDate={calendarInitialDate} events={serializedCalendarEvents} />
         </Panel>
 

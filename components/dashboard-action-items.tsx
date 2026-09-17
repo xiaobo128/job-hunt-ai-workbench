@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { closeDashboardApplication, updateEventStatus } from "@/app/actions";
 import { Panel } from "@/components/cards";
+import { getEventTypeLabel } from "@/lib/event-types";
 import type { DashboardWorkflowItem } from "@/lib/workflow";
 
 export function DashboardActionItems({ initialItems }: { initialItems: DashboardWorkflowItem[] }) {
@@ -41,13 +42,13 @@ export function DashboardActionItems({ initialItems }: { initialItems: Dashboard
   const completedCount = items.filter((item) => item.taskStatus === "COMPLETED").length;
   const activeCount = items.length - completedCount;
 
-  return <Panel title="近期任务" subtitle={`已完成 ${completedCount} / ${items.length} · 待处理 ${activeCount}`} className="flex max-h-[640px] min-h-0 flex-col">
+  return <Panel title="近期任务" subtitle={`已完成 ${completedCount} / ${items.length} · 待处理 ${activeCount}`} className="flex max-h-[520px] min-h-0 flex-col p-4">
     {error ? <p role="alert" className="mb-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
     <div className="min-h-0 flex-1 divide-y divide-line overflow-y-auto pr-1">
       {items.length === 0 ? <div className="rounded-2xl bg-panel p-4 text-sm text-slate-500">目前没有临近的待办或安排。</div> : items.map((item) => (
-        <div key={item.id} className={`flex items-center gap-2 py-3 first:pt-0 ${openItemId === item.id ? "pb-36" : "last:pb-0"} ${item.taskStatus === "COMPLETED" ? "text-slate-400" : ""}`}>
-          <Link href={item.href} className={`flex min-w-0 flex-1 items-center justify-between gap-4 transition ${item.taskStatus === "COMPLETED" ? "hover:text-slate-500" : "hover:text-accent"}`}>
-            <p className={`min-w-0 truncate text-sm ${item.taskStatus === "COMPLETED" ? "text-slate-400" : "text-ink"}`}>{item.taskStatus === "COMPLETED" ? <span className="mr-1 font-medium">✓</span> : null}<span className="font-medium">{item.companyName}</span>：{item.reason}</p>
+        <div key={item.id} className={`flex items-start gap-2 py-2.5 first:pt-0 ${openItemId === item.id ? "pb-36" : "last:pb-0"} ${item.taskStatus === "COMPLETED" ? "text-slate-400" : ""}`}>
+          <Link href={item.href} className={`flex min-w-0 flex-1 items-start gap-3 transition ${item.taskStatus === "COMPLETED" ? "hover:text-slate-500" : "hover:text-accent"}`}>
+            <p className={`min-w-0 flex-1 break-words text-sm leading-5 ${item.taskStatus === "COMPLETED" ? "text-slate-400" : "text-ink"}`}>{item.taskStatus === "COMPLETED" ? <span className="mr-1 font-medium">✓</span> : null}<span className="font-medium">{item.companyName} · {item.roleTitle} · {item.sourceType === "EVENT" && item.eventType ? getEventTypeLabel(item.eventType) : item.reason}</span></p>
             <span className="shrink-0 text-xs text-slate-400">{item.taskStatus === "COMPLETED" ? "已完成" : item.displayTime}</span>
           </Link>
           {item.sourceType === "EVENT" && item.taskStatus === "ACTIVE" ? <div className="relative shrink-0">

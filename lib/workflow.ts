@@ -24,6 +24,7 @@ export type DashboardWorkflowItem = WorkflowItem & {
   applicationId: string;
   sourceType: "EVENT" | "NEXT_ACTION";
   eventId?: string;
+  eventType?: string;
   displayTime: string;
   taskStatus: "ACTIVE" | "COMPLETED";
 };

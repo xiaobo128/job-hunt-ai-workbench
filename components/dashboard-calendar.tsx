@@ -9,13 +9,13 @@ export type CalendarEvent = {
   applicationId: string;
   eventType: string;
   status: "ACTIVE" | "COMPLETED" | "IGNORED";
-  title: string;
   eventTime: string | null;
   windowStartAt: string | null;
   deadlineAt: string | null;
   receivedAt: string | null;
   relativeValidityMinutes: number | null;
   companyName: string;
+  roleTitle: string;
 };
 
 type CalendarEntry = CalendarEvent & {
@@ -44,18 +44,18 @@ export function DashboardCalendar({ initialDate, events }: { initialDate: string
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
         <p className="text-sm text-slate-500">{monthLabel}</p>
         <div className="flex items-center gap-1">
-          <button type="button" aria-label="上个月" onClick={() => setVisibleMonth((month) => addMonths(month, -1))} className="grid h-8 w-8 place-items-center rounded-lg text-lg text-slate-500 transition hover:bg-panel hover:text-ink">‹</button>
-          <button type="button" aria-label="下个月" onClick={() => setVisibleMonth((month) => addMonths(month, 1))} className="grid h-8 w-8 place-items-center rounded-lg text-lg text-slate-500 transition hover:bg-panel hover:text-ink">›</button>
+          <button type="button" aria-label="上个月" onClick={() => setVisibleMonth((month) => addMonths(month, -1))} className="grid h-7 w-7 place-items-center rounded-lg text-lg text-slate-500 transition hover:bg-panel hover:text-ink">‹</button>
+          <button type="button" aria-label="下个月" onClick={() => setVisibleMonth((month) => addMonths(month, 1))} className="grid h-7 w-7 place-items-center rounded-lg text-lg text-slate-500 transition hover:bg-panel hover:text-ink">›</button>
         </div>
       </div>
 
-      <div className="grid grid-cols-7 border-b border-line pb-1 text-center text-xs font-medium text-slate-400">
-        {weekdayLabels.map((label) => <span key={label} className="py-1">{label}</span>)}
+      <div className="grid grid-cols-7 border-b border-line pb-0.5 text-center text-xs font-medium text-slate-400">
+        {weekdayLabels.map((label) => <span key={label} className="py-0.5">{label}</span>)}
       </div>
-      <div className="grid grid-cols-7 gap-y-1 pt-2">
+      <div className="grid grid-cols-7 gap-y-0.5 pt-1">
         {days.map((day) => {
           const key = dateKey(day);
           const dayEntries = entries.filter((entry) => entry.dateKeys.includes(key));
@@ -63,9 +63,9 @@ export function DashboardCalendar({ initialDate, events }: { initialDate: string
           const isToday = key === dateKey(today);
           const isCurrentMonth = day.getMonth() === visibleMonth.getMonth();
 
-          return <button key={key} type="button" onClick={() => selectDate(day)} aria-pressed={isSelected} aria-label={`${formatLongDate(day)}，${dayEntries.length} 项安排`} className="group flex min-h-12 flex-col items-center rounded-xl py-1 transition hover:bg-panel">
+          return <button key={key} type="button" onClick={() => selectDate(day)} aria-pressed={isSelected} aria-label={`${formatLongDate(day)}，${dayEntries.length} 项安排`} className="group flex min-h-10 flex-col items-center rounded-xl py-0.5 transition hover:bg-panel">
             <span className={`grid h-6 w-6 place-items-center rounded-full text-xs tabular-nums ${isSelected ? "bg-ink font-semibold text-white" : isToday ? "bg-accentSoft font-semibold text-accent" : isCurrentMonth ? "text-slate-700" : "text-slate-300"}`}>{day.getDate()}</span>
-            <span className="mt-1 flex h-2 items-center justify-center gap-0.5" aria-hidden="true">
+            <span className="mt-0.5 flex h-2 items-center justify-center gap-0.5" aria-hidden="true">
               {dayEntries.slice(0, 3).map((entry) => <i key={entry.id} className={`h-1.5 w-1.5 rounded-full ${dotClass(entry)}`} />)}
               {dayEntries.length > 3 ? <i className="text-[9px] font-semibold leading-none text-slate-400">+{dayEntries.length - 3}</i> : null}
             </span>
@@ -73,13 +73,13 @@ export function DashboardCalendar({ initialDate, events }: { initialDate: string
         })}
       </div>
 
-      <div className="mt-4 border-t border-line pt-4">
+      <div className="mt-2 border-t border-line pt-2">
         <h3 className="text-sm font-semibold text-ink">{formatChineseDate(selectedDate)}</h3>
-        {selectedEntries.length === 0 ? <p className="mt-3 rounded-xl bg-panel px-3 py-3 text-sm text-slate-500">当天暂无安排</p> : <div className="mt-2 divide-y divide-line">
-          {selectedEntries.map((entry) => <Link key={entry.id} href={`/notifications/${entry.applicationId}`} className="flex items-start gap-3 rounded-xl px-2 py-3 transition hover:bg-panel">
+        {selectedEntries.length === 0 ? <p className="mt-2 rounded-xl bg-panel px-3 py-2 text-sm text-slate-500">当天暂无安排</p> : <div className="mt-1 divide-y divide-line">
+          {selectedEntries.map((entry) => <Link key={entry.id} href={`/notifications/${entry.applicationId}`} className="flex items-start gap-3 rounded-xl px-2 py-2 transition hover:bg-panel">
             <span className="w-24 shrink-0 pt-0.5 text-xs leading-5 text-slate-500">{eventTimeLabel(entry)}</span>
             <span className="min-w-0">
-              <span className="block truncate text-sm font-medium text-ink">{entry.companyName} · {eventTitle(entry)}</span>
+              <span className="block text-sm font-medium text-ink">{eventBusinessTitle(entry)}</span>
             </span>
           </Link>)}
         </div>}
@@ -125,16 +125,7 @@ function eventTimeLabel(event: CalendarEntry) {
   return "时间待确认";
 }
 
-function eventTitle(event: CalendarEntry) {
-  return event.title || eventTypeLabel(event.eventType);
-}
-
-function eventTypeLabel(eventType: string) {
-  if (isInterviewEventType(eventType)) return getEventTypeLabel(eventType);
-  if (isAssessmentEventType(eventType)) return getEventTypeLabel(eventType);
-  if (eventType === "DEADLINE") return "截止提醒";
-  return "事项";
-}
+function eventBusinessTitle(event: CalendarEntry) { return `${event.companyName} · ${event.roleTitle} · ${getEventTypeLabel(event.eventType)}`; }
 
 function getCalendarDays(month: Date) {
   const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
