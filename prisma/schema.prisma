@@ -159,6 +159,7 @@ model JobLead {
   companyName       String
   roleTitle         String
   city              String?
+  industry          String?
   seniority         String?
   salaryRange       String?
   skills            String
@@ -181,6 +182,7 @@ model Application {
   jobLeadId         String           @unique
   currentStage      ApplicationStage @default(READY_TO_APPLY)
   appliedAt         DateTime?
+  usedResumeId      String?
   submissionChannel String?
   nextAction        String?
   nextActionDueAt   DateTime?
@@ -189,7 +191,10 @@ model Application {
   updatedAt         DateTime         @updatedAt
   createdAt         DateTime         @default(now())
   jobLead           JobLead          @relation(fields: [jobLeadId], references: [id], onDelete: Cascade)
+  usedResume        Resume?          @relation("ApplicationUsedResume", fields: [usedResumeId], references: [id], onDelete: SetNull)
   events            Event[]
+
+  @@index([usedResumeId])
 }
 
 model Resume {
@@ -208,6 +213,7 @@ model Resume {
   assets           ResumeAsset[]
   tailorRuns       ResumeTailorRun[]
   variants         ResumeVariant[]
+  usedByApplications Application[]    @relation("ApplicationUsedResume")
   agentRuns        AgentRun[]
   parseAttempts    ResumeParse[]
 }

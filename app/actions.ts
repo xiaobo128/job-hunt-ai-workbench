@@ -466,7 +466,7 @@ export async function updateApplicationStage(formData: FormData) {
 
 }
 
-const jobsTableEditableFields = ["companyName", "roleTitle", "city", "sourceUrl", "sourceName", "appliedAt", "note"] as const;
+const jobsTableEditableFields = ["companyName", "roleTitle", "city", "industry", "sourceUrl", "sourceName", "appliedAt", "note"] as const;
 type JobsTableEditableField = (typeof jobsTableEditableFields)[number];
 
 export async function updateJobsTableField(input: { jobLeadId: string; field: JobsTableEditableField; value: string }) {
@@ -486,7 +486,7 @@ export async function updateJobsTableField(input: { jobLeadId: string; field: Jo
   if (field === "companyName" || field === "roleTitle") {
     if (!value) throw new Error("Company and role are required");
     await prisma.jobLead.update({ where: { id: jobLead.id }, data: { [field]: value } });
-  } else if (field === "city" || field === "sourceName" || field === "sourceUrl") {
+  } else if (field === "city" || field === "industry" || field === "sourceName" || field === "sourceUrl") {
     if (field === "sourceUrl" && value) {
       try {
         const url = new URL(value);
@@ -511,6 +511,29 @@ export async function updateJobsTableField(input: { jobLeadId: string; field: Jo
   revalidatePath("/jobs");
   revalidatePath("/board");
   revalidatePath(`/jobs/${jobLead.id}`);
+}
+
+export async function updateApplicationResume(applicationId: string, resumeId: string | null) {
+  const user = await requireSessionUser();
+  const application = await prisma.application.findFirst({
+    where: { id: applicationId, jobLead: { ownerId: user.id } },
+    select: { id: true, jobLeadId: true }
+  });
+  if (!application) throw new Error("Application not found");
+
+  if (resumeId) {
+    const resume = await prisma.resume.findFirst({
+      where: { id: resumeId, ownerId: user.id, parseAttempts: { some: { status: "CONFIRMED" } } },
+      select: { id: true }
+    });
+    if (!resume) throw new Error("Resume not found or not confirmed");
+  }
+
+  await prisma.application.update({ where: { id: application.id }, data: { usedResumeId: resumeId } });
+  revalidatePath("/");
+  revalidatePath("/jobs");
+  revalidatePath("/board");
+  revalidatePath(`/jobs/${application.jobLeadId}`);
 }
 
 export async function updateEventStatus(eventId: string, status: EventStatus) {
