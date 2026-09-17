@@ -763,12 +763,14 @@ export async function testNotificationWebhook() {
   revalidatePath("/account");
 }
 
-export async function deleteResume(formData: FormData) {
+export type ResumeVersionActionState = { error?: string; success?: boolean };
+
+export async function deleteResume(formData: FormData): Promise<ResumeVersionActionState> {
   const user = await requireSessionUser();
   const resumeId = formData.get("resumeId") as string;
 
   if (!resumeId) {
-    return;
+    return { error: "缺少要删除的简历版本。" };
   }
 
   // The most recently updated Resume is the existing current-primary heuristic.
@@ -780,7 +782,7 @@ export async function deleteResume(formData: FormData) {
   });
 
   if (!currentResume || currentResume.id === resumeId) {
-    return;
+    return { error: "当前主简历不能直接删除。" };
   }
 
   await prisma.resume.deleteMany({
@@ -793,6 +795,40 @@ export async function deleteResume(formData: FormData) {
   revalidatePath("/resumes");
   revalidatePath("/tailor");
   revalidatePath("/");
+  return { success: true };
+}
+
+export async function setCurrentResume(formData: FormData): Promise<ResumeVersionActionState> {
+  const user = await requireSessionUser();
+  const resumeId = formData.get("resumeId") as string;
+
+  if (!resumeId) {
+    return { error: "缺少要设为主简历的版本。" };
+  }
+
+  const resume = await prisma.resume.findFirst({
+    where: { id: resumeId, ownerId: user.id },
+    select: {
+      id: true,
+      parseAttempts: { orderBy: { createdAt: "desc" }, select: { status: true }, take: 1 }
+    }
+  });
+
+  if (!resume) {
+    return { error: "未找到该简历版本。" };
+  }
+
+  if (resume.parseAttempts[0]?.status !== "CONFIRMED") {
+    return { error: "请先确认该简历的结构化信息，再设为主简历。" };
+  }
+
+  // The current-primary pointer is intentionally represented by latest updatedAt.
+  await prisma.resume.update({ where: { id: resume.id }, data: { updatedAt: new Date() } });
+
+  revalidatePath("/resumes");
+  revalidatePath("/tailor");
+  revalidatePath("/");
+  return { success: true };
 }
 
 export async function deleteResumeAsset(formData: FormData) {
