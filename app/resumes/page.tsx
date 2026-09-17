@@ -23,7 +23,7 @@ export default async function ResumesPage() {
   return (
     <PageShell title="候选人资料" description="维护当前主简历和已确认的事实，帮助你持续推进岗位。" action={<AddResumeDialog />}>
       {!resume ? (
-        <div className="rounded-3xl border border-dashed border-line bg-white px-4 py-8 text-center text-sm text-slate-500">还没有主简历。上传一份简历，开始整理候选人资料。</div>
+        <div className="rounded-3xl border border-dashed border-line bg-white px-4 py-8 text-center text-sm text-slate-500">还没有简历版本。新增一份简历版本，开始整理候选人资料。</div>
       ) : (
         <section className="rounded-3xl border border-line bg-white px-4 py-3.5 shadow-card">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -33,7 +33,7 @@ export default async function ResumesPage() {
           </div>
           <div className="mt-1.5"><ResumeNoteInline resumeId={resume.id} initialNote={resume.note} /></div>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600">
-            {confirmedParse ? <><Badge>已确认</Badge><span>已确认事实，可作为后续岗位准备依据</span><span aria-hidden="true">·</span><a href={`/resumes/${resume.id}/parses/${confirmedParse.id}/review`} className="font-medium text-accent underline-offset-4 hover:underline">查看资料</a></> : resume.parseAttempts[0] ? <ParseStatus resumeId={resume.id} parse={resume.parseAttempts[0]} /> : <span className="text-slate-500">上传主简历后，可在这里确认候选人资料。</span>}
+            {confirmedParse ? <><Badge>已确认</Badge><span>已确认事实，可作为后续岗位准备依据</span><span aria-hidden="true">·</span><a href={`/resumes/${resume.id}/parses/${confirmedParse.id}/review`} className="font-medium text-accent underline-offset-4 hover:underline">查看资料</a></> : resume.parseAttempts[0] ? <ParseStatus resumeId={resume.id} parse={resume.parseAttempts[0]} /> : <span className="text-slate-500">新增简历版本后，可在这里确认候选人资料。</span>}
           </div>
         </section>
       )}

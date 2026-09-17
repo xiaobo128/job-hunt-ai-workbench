@@ -14,7 +14,7 @@ export function AddResumeDialog() {
         onClick={() => setOpen(true)}
         className="inline-flex rounded-2xl bg-ink px-4 py-3 text-sm font-medium text-white"
       >
-        上传主简历
+        新增简历版本
       </button>
 
       {open
@@ -24,9 +24,9 @@ export function AddResumeDialog() {
                 <div className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl border border-line bg-white p-5 shadow-card sm:max-h-[calc(100vh-3rem)]">
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <h2 className="text-lg font-semibold text-ink">上传主简历</h2>
+                      <h2 className="text-lg font-semibold text-ink">新增简历版本</h2>
                       <p className="mt-1 text-sm text-slate-500">
-                        上传当前主简历，并补充候选人资料说明。
+                        上传新的简历版本，并补充候选人资料说明。
                       </p>
                     </div>
                     <button
@@ -51,7 +51,7 @@ export function AddResumeDialog() {
                     </label>
 
                     <label className="block text-sm text-slate-600">
-                      主简历文件
+                      简历文件
                       <input
                         type="file"
                         name="resumeFiles"
@@ -82,7 +82,7 @@ export function AddResumeDialog() {
                       >
                         取消
                       </button>
-                      <button className="rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white">保存主简历</button>
+                      <button className="rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white">保存简历版本</button>
                     </div>
                   </form>
                 </div>

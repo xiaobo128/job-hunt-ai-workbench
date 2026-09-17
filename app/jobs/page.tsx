@@ -10,7 +10,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
     prisma.jobLead.findMany({
       where: { ownerId: user.id },
       select: {
-        id: true, companyName: true, roleTitle: true, city: true, seniority: true, sourceName: true,
+        id: true, companyName: true, roleTitle: true, city: true, seniority: true, sourceName: true, sourceUrl: true,
         parsedSummary: true, rawContent: true, needsReview: true, skills: true, status: true, updatedAt: true,
         application: {
           select: {
@@ -19,6 +19,7 @@ export default async function JobsPage({ searchParams }: { searchParams: Promise
             submissionChannel: true,
             nextAction: true,
             note: true,
+            appliedAt: true,
             updatedAt: true,
             events: {
               select: { eventType: true, title: true, eventTime: true, createdAt: true },
