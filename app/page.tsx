@@ -29,27 +29,27 @@ export default async function DashboardPage() {
       description="聚焦今天要推进的事项、近期安排与整体求职进度。"
       action={<Link href="/notifications" className="inline-flex rounded-2xl bg-ink px-4 py-3 text-sm font-medium text-white">导入或修正通知</Link>}
     >
-      <DashboardActionItems initialItems={todayActionItems} />
+      <Panel title="求职进度">
+        <dl className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+          <ProgressItem label="待投递" value={progress.readyToApply} />
+          <ProgressItem label="已投递" value={progress.applied} />
+          <ProgressItem label="测评" value={progress.assessment} />
+          <ProgressItem label="面试" value={progress.interview} />
+          <ProgressItem label="Offer" value={progress.offer} />
+        </dl>
+      </Panel>
 
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_.8fr]">
-        <Panel title="日历">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(300px,1fr)]">
+        <Panel title="日历" className="min-w-0">
           <DashboardCalendar initialDate={calendarInitialDate} events={serializedCalendarEvents} />
         </Panel>
 
-        <Panel title="求职进度">
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-4 text-sm">
-            <ProgressItem label="待投递" value={progress.readyToApply} />
-            <ProgressItem label="已投递" value={progress.applied} />
-            <ProgressItem label="测评" value={progress.assessment} />
-            <ProgressItem label="面试" value={progress.interview} />
-            <ProgressItem label="Offer" value={progress.offer} />
-          </dl>
-        </Panel>
+        <DashboardActionItems initialItems={todayActionItems} />
       </div>
     </PageShell>
   );
 }
 
 function ProgressItem({ label, value }: { label: string; value: number }) {
-  return <div className="flex items-baseline justify-between gap-3 border-b border-line pb-2"><dt className="text-slate-500">{label}</dt><dd className="text-lg font-semibold tabular-nums text-ink">{value}</dd></div>;
+  return <div className="flex min-h-24 flex-col justify-between rounded-2xl bg-panel px-4 py-3"><dt className="text-sm text-slate-500">{label}</dt><dd className="text-3xl font-semibold tabular-nums text-ink">{value}</dd></div>;
 }
