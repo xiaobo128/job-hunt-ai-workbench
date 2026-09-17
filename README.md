@@ -100,7 +100,7 @@
 的方式展示，避免把邮件发件人等无关信息带到首页。
 
 <!-- 首页截图 -->
-![首页示例](/home/rosbo/projects/job-hunt-ai-workbench/reademe_pic/首页示例.png)
+![首页示例](reademe_pic/首页示例.png)
 
 ---
 
@@ -163,8 +163,8 @@
 - 与传统求职台账结合使用
 
 <!-- 我的求职截图 -->
-![我的求职示例-列表](/home/rosbo/projects/job-hunt-ai-workbench/reademe_pic/我的求职示例.png)
-![我的求职示例-看板](/home/rosbo/projects/job-hunt-ai-workbench/reademe_pic/我的求职示例2.png)
+![我的求职示例-列表](reademe_pic/我的求职示例.png)
+![我的求职示例-看板](reademe_pic/我的求职示例2.png)
 
 ---
 
@@ -228,10 +228,10 @@
 确认后的信息可以作为后续岗位分析和 Agent 准备的候选人事实来源。
 
 <!-- 简历仓库截图 -->
-![简历仓库示例](/home/rosbo/projects/job-hunt-ai-workbench/reademe_pic/我的简历示例.png)
+![简历仓库示例](reademe_pic/我的简历示例.png)
 
 <!-- 简历结构化确认截图 -->
-![简历结构化示例](/home/rosbo/projects/job-hunt-ai-workbench/reademe_pic/我的简历示例2.png)
+![简历结构化示例](reademe_pic/我的简历示例2.png)
 
 ---
 
@@ -298,10 +298,10 @@
 这样既避免长邮件占据大量页面空间，又能随时回到原始通知确认细节。
 
 <!-- 通知管理截图 -->
-![通知管理示例](/home/rosbo/projects/job-hunt-ai-workbench/reademe_pic/通知管理示例1.png)
+![通知管理示例](reademe_pic/通知管理示例1.png)
 
 <!-- 通知详情截图 -->
-![通知详情示例](/home/rosbo/projects/job-hunt-ai-workbench/reademe_pic/通知管理-2.png)
+![通知详情示例](reademe_pic/通知管理-2.png)
 
 ---
 
