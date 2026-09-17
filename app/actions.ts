@@ -771,6 +771,18 @@ export async function deleteResume(formData: FormData) {
     return;
   }
 
+  // The most recently updated Resume is the existing current-primary heuristic.
+  // Keep its protection on the server as well as in the UI.
+  const currentResume = await prisma.resume.findFirst({
+    where: { ownerId: user.id },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true }
+  });
+
+  if (!currentResume || currentResume.id === resumeId) {
+    return;
+  }
+
   await prisma.resume.deleteMany({
     where: {
       id: resumeId,

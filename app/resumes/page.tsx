@@ -1,6 +1,7 @@
 import { PageShell } from "@/components/app-shell";
 import { Badge } from "@/components/cards";
 import { AddResumeDialog } from "@/components/add-resume-dialog";
+import { DeleteResumeForm } from "@/components/delete-resume-form";
 import { RetryResumeParseForm } from "@/components/retry-resume-parse-form";
 import { ResumeNoteInline } from "@/components/resume-note-inline";
 import { formatDate } from "@/lib/format";
@@ -10,7 +11,7 @@ export default async function ResumesPage() {
   const resumes = await getResumes();
 
   return (
-    <PageShell title="候选人资料" description="维护简历版本与已确认的事实，帮助你持续推进岗位。" action={<AddResumeDialog />}>
+    <PageShell title="简历仓库" description="管理不同简历版本与已确认的结构化信息。" action={<AddResumeDialog />}>
       {resumes.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-line bg-white px-4 py-8 text-center text-sm text-slate-500">还没有简历版本。新增一份简历版本，开始整理候选人资料。</div>
       ) : (
@@ -25,10 +26,13 @@ export default async function ResumesPage() {
 function ResumeVersionCard({ resume, isCurrent }: { resume: Awaited<ReturnType<typeof getResumes>>[number]; isCurrent: boolean }) {
   const confirmedParse = resume.currentConfirmedParse;
   return <section className="rounded-3xl border border-line bg-white px-4 py-3.5 shadow-card">
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-      <h2 className="text-lg font-semibold text-ink">{resume.title}</h2>
-      {isCurrent ? <Badge>当前主简历</Badge> : <Badge>简历版本</Badge>}
-      <span className="text-sm text-slate-500">更新于 {formatDate(resume.updatedAt)}</span>
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <h2 className="text-lg font-semibold text-ink">{resume.title}</h2>
+        {isCurrent ? <Badge>当前主简历</Badge> : <Badge>简历版本</Badge>}
+        <span className="text-sm text-slate-500">更新于 {formatDate(resume.updatedAt)}</span>
+      </div>
+      {!isCurrent ? <DeleteResumeForm resumeId={resume.id} /> : null}
     </div>
     <div className="mt-1.5"><ResumeNoteInline resumeId={resume.id} initialNote={resume.note} /></div>
     <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-600">
