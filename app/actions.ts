@@ -334,6 +334,53 @@ export async function updateApplicationStage(formData: FormData) {
 
 }
 
+const jobsTableEditableFields = ["companyName", "roleTitle", "city", "sourceUrl", "sourceName", "appliedAt", "note"] as const;
+type JobsTableEditableField = (typeof jobsTableEditableFields)[number];
+
+export async function updateJobsTableField(input: { jobLeadId: string; field: JobsTableEditableField; value: string }) {
+  const user = await requireSessionUser();
+  const { jobLeadId, field } = input;
+  if (!jobLeadId || !jobsTableEditableFields.includes(field)) {
+    throw new Error("Invalid jobs table update");
+  }
+
+  const jobLead = await prisma.jobLead.findFirst({
+    where: { id: jobLeadId, ownerId: user.id },
+    select: { id: true, application: { select: { id: true } } }
+  });
+  if (!jobLead) throw new Error("Job lead not found");
+
+  const value = input.value.trim();
+  if (field === "companyName" || field === "roleTitle") {
+    if (!value) throw new Error("Company and role are required");
+    await prisma.jobLead.update({ where: { id: jobLead.id }, data: { [field]: value } });
+  } else if (field === "city" || field === "sourceName" || field === "sourceUrl") {
+    if (field === "sourceUrl" && value) {
+      try {
+        const url = new URL(value);
+        if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("Invalid URL");
+      } catch {
+        throw new Error("请输入有效的 http(s) 链接");
+      }
+    }
+    await prisma.jobLead.update({ where: { id: jobLead.id }, data: { [field]: value || null } });
+  } else {
+    if (!jobLead.application) throw new Error("Application not found");
+    if (field === "appliedAt") {
+      const date = value ? new Date(`${value}T00:00:00`) : null;
+      if (value && Number.isNaN(date?.getTime())) throw new Error("请输入有效日期");
+      await prisma.application.update({ where: { id: jobLead.application.id }, data: { appliedAt: date } });
+    } else {
+      await prisma.application.update({ where: { id: jobLead.application.id }, data: { note: value || null } });
+    }
+  }
+
+  revalidatePath("/");
+  revalidatePath("/jobs");
+  revalidatePath("/board");
+  revalidatePath(`/jobs/${jobLead.id}`);
+}
+
 export async function updateEventStatus(eventId: string, status: EventStatus) {
   const user = await requireSessionUser();
 
