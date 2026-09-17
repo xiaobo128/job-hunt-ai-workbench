@@ -14,7 +14,7 @@ export const applicationStageConfig: Record<ApplicationStage, { label: string; b
   FINAL_INTERVIEW: { label: "终面", badgeClassName: "bg-indigo-100 text-indigo-800 ring-indigo-300", order: 8 },
   NEGOTIATION: { label: "谈薪", badgeClassName: "bg-yellow-50 text-yellow-800 ring-yellow-200", order: 9 },
   OFFER: { label: "已录用", badgeClassName: "bg-emerald-50 text-emerald-700 ring-emerald-200", order: 10 },
-  REJECTED: { label: "挂了", badgeClassName: "bg-rose-50 text-rose-700 ring-rose-200", order: 11 },
+  REJECTED: { label: "未通过", badgeClassName: "bg-rose-50 text-rose-700 ring-rose-200", order: 11 },
   CLOSED: { label: "已结束", badgeClassName: "bg-zinc-100 text-zinc-600 ring-zinc-200", order: 12 }
 };
 
