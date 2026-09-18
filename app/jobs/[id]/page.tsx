@@ -101,11 +101,9 @@ export default async function JobDetailPage({
           ? "系统已先解析岗位字段。核对并保存后，就可以回到工作台继续推进。"
           : "这里集中维护岗位信息、推进状态、通知记录和关联简历。"
       }
+      action={<JobDetailReturnButton href={workspaceHref} formId={detailFormId} initialSnapshot={initialSnapshot} />}
     >
       <div className="space-y-3">
-        <div className="flex justify-end">
-          <JobDetailReturnButton href={workspaceHref} formId={detailFormId} initialSnapshot={initialSnapshot} />
-        </div>
         <form id={detailFormId} action={updateJobLead} className="rounded-xl border border-line bg-white p-4">
           <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0">
