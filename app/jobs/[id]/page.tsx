@@ -55,6 +55,7 @@ export default async function JobDetailPage({
     sourceName: job.sourceName || "",
     sourceUrl: job.sourceUrl || "",
     city: job.city || "",
+    industry: job.industry || "",
     seniority: job.seniority || "",
     salaryRange: job.salaryRange || "",
     responsibilitiesText: listToMultiline(job.responsibilities),
@@ -149,6 +150,7 @@ export default async function JobDetailPage({
               <Info label="当前推进情况">
                 <ApplicationStageBadge stage={job.application.currentStage} customLabel={job.application.nextAction} />
               </Info>
+              <Info label="所用简历">{job.application.usedResume?.title || "—"}</Info>
               <Info label="最近更新">{formatDate(job.updatedAt)}</Info>
             </div>
 
@@ -158,6 +160,7 @@ export default async function JobDetailPage({
               <Field label="来源备注" name="sourceName" defaultValue={job.sourceName || ""} />
               <Field label="来源链接" name="sourceUrl" defaultValue={job.sourceUrl || ""} />
               <Field label="城市 / Base" name="city" defaultValue={job.city || ""} />
+              <Field label="行业" name="industry" defaultValue={job.industry || ""} placeholder="例如：机器人 / 制造业 / 互联网" />
               <Field label="工作年限" name="seniority" defaultValue={job.seniority || ""} />
               <Field label="薪资范围" name="salaryRange" defaultValue={job.salaryRange || ""} />
             </div>
@@ -335,13 +338,24 @@ function Info({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function Field({ label, name, defaultValue }: { label: string; name: string; defaultValue: string }) {
+function Field({
+  label,
+  name,
+  defaultValue,
+  placeholder
+}: {
+  label: string;
+  name: string;
+  defaultValue: string;
+  placeholder?: string;
+}) {
   return (
     <label className="block text-sm text-slate-600">
       {label}
       <input
         name={name}
         defaultValue={defaultValue}
+        placeholder={placeholder}
         className="mt-2 h-10 w-full rounded-xl border border-line bg-panel px-3.5 text-sm outline-none"
       />
     </label>

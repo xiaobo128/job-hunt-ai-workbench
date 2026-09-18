@@ -392,6 +392,7 @@ export async function updateJobLead(formData: FormData) {
       companyName: ((formData.get("companyName") as string | null) ?? "").trim() || "待确认公司",
       roleTitle: ((formData.get("roleTitle") as string | null) ?? "").trim() || "待确认岗位",
       city: ((formData.get("city") as string | null) ?? "").trim() || null,
+      industry: ((formData.get("industry") as string | null) ?? "").trim() || null,
       seniority: ((formData.get("seniority") as string | null) ?? "").trim() || null,
       salaryRange: ((formData.get("salaryRange") as string | null) ?? "").trim() || null,
       responsibilities: multilineToJson((formData.get("responsibilitiesText") as string | null) ?? ""),
