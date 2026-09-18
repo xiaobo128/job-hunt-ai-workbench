@@ -105,25 +105,34 @@ export default async function JobDetailPage({
         <div className="flex justify-end">
           <JobDetailReturnButton href={workspaceHref} formId={detailFormId} initialSnapshot={initialSnapshot} />
         </div>
-        <Panel
-          title="岗位信息"
-          subtitle={
-            job.needsReview
-              ? [
-                  "这条岗位还处于待确认状态。请先核对解析结果，确认后再保存。",
-                  job.parseNote?.trim() ? `解析说明：${job.parseNote.trim()}` : ""
-                ]
-                  .filter(Boolean)
-                  .join(" ")
-              : [
-                  "这里保留岗位的结构化信息和来源信息。",
-                  job.parseNote?.trim() ? `解析说明：${job.parseNote.trim()}` : ""
-                ]
-                  .filter(Boolean)
-                  .join(" ")
-          }
-        >
-          <form id={detailFormId} action={updateJobLead} className="space-y-3">
+        <form id={detailFormId} action={updateJobLead} className="rounded-xl border border-line bg-white p-4">
+          <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="text-[17px] font-semibold text-ink">岗位信息</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                {job.needsReview
+                  ? [
+                      "这条岗位还处于待确认状态。请先核对解析结果，确认后再保存。",
+                      job.parseNote?.trim() ? `解析说明：${job.parseNote.trim()}` : ""
+                    ]
+                      .filter(Boolean)
+                      .join(" ")
+                  : [
+                      "这里保留岗位的结构化信息和来源信息。",
+                      job.parseNote?.trim() ? `解析说明：${job.parseNote.trim()}` : ""
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+              </p>
+            </div>
+            <JobDetailSubmitButton
+              idleLabel="保存岗位信息"
+              pendingLabel="保存中..."
+              className="inline-flex h-9 shrink-0 items-center justify-center self-start rounded-lg bg-ink px-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-70"
+            />
+          </div>
+
+          <div className="space-y-3">
             <input type="hidden" name="jobLeadId" value={job.id} />
             <input type="hidden" name="redirectTo" value={workspaceHref} />
             <input type="hidden" name="parseNote" value={job.parseNote || ""} />
@@ -168,13 +177,8 @@ export default async function JobDetailPage({
               />
             </div>
 
-            <JobDetailSubmitButton
-              idleLabel="保存岗位信息"
-              pendingLabel="保存中..."
-              className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-ink px-4 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-70"
-            />
-          </form>
-        </Panel>
+          </div>
+        </form>
 
         <Panel title="求职进度" subtitle="点击节点更新当前主流程阶段；详细推进信息仍在下方的推进备注中维护。">
           <JobStageProgress
