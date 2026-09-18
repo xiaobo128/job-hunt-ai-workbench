@@ -2,6 +2,7 @@
 
 import clsx from "clsx";
 import { usePathname } from "next/navigation";
+import { MobileNav } from "@/components/mobile-nav";
 import { Sidebar } from "@/components/sidebar";
 
 type AppFrameProps = {
@@ -26,7 +27,8 @@ export function AppFrame({ children, currentUser }: AppFrameProps) {
       )}
     >
       {!isAuthPage ? <Sidebar currentUser={currentUser} /> : null}
-      <main className={clsx("min-w-0", isAuthPage ? "w-full max-w-md" : "flex-1")}>{children}</main>
+      <main className={clsx("min-w-0", isAuthPage ? "w-full max-w-md" : "flex-1 pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0")}>{children}</main>
+      {!isAuthPage ? <MobileNav /> : null}
     </div>
   );
 }
