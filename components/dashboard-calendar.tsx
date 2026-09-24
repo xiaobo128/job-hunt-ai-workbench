@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { getEventTypeLabel, isAssessmentEventType, isInterviewEventType } from "@/lib/event-types";
+import { getCalendarEventDates } from "@/lib/event-time";
 
 export type CalendarEvent = {
   id: string;
@@ -93,15 +94,9 @@ function toCalendarEntry(event: CalendarEvent): CalendarEntry | null {
   const windowStartAt = toDate(event.windowStartAt);
   const deadlineAt = toDate(event.deadlineAt);
   const receivedAt = toDate(event.receivedAt);
-  const validUntil = receivedAt && event.relativeValidityMinutes && event.relativeValidityMinutes > 0
-    ? new Date(receivedAt.getTime() + event.relativeValidityMinutes * 60_000)
-    : null;
-
-  if (eventTime) return { ...event, dateKeys: [dateKey(eventTime)], sortAt: eventTime };
-  if (windowStartAt && deadlineAt) return { ...event, dateKeys: unique([dateKey(windowStartAt), dateKey(deadlineAt)]), sortAt: windowStartAt };
-  if (validUntil) return { ...event, dateKeys: [dateKey(validUntil)], sortAt: validUntil };
-  if (deadlineAt) return { ...event, dateKeys: [dateKey(deadlineAt)], sortAt: deadlineAt };
-  return null;
+  const dates = getCalendarEventDates({ eventTime, windowStartAt, deadlineAt, receivedAt, relativeValidityMinutes: event.relativeValidityMinutes });
+  if (dates.length === 0) return null;
+  return { ...event, dateKeys: unique(dates.map(dateKey)), sortAt: dates[0] };
 }
 
 function dotClass(event: CalendarEntry) {

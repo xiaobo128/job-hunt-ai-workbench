@@ -10,6 +10,8 @@ export function middleware(request: NextRequest) {
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/health") ||
+    pathname.startsWith("/api/mcp") ||
+    pathname.startsWith("/api/agent") ||
     pathname.startsWith("/uploads") ||
     pathname.includes(".")
   ) {

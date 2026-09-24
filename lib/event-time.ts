@@ -77,6 +77,17 @@ export function getDashboardEventDueAt(values: EventTimeInput) {
   return values.eventTime ?? resolved.effectiveDueAt;
 }
 
+/** Calendar dates use the same precedence as the dashboard calendar. */
+export function getCalendarEventDates(values: EventTimeInput) {
+  if (values.eventTime) return [values.eventTime];
+  if (values.windowStartAt && values.deadlineAt) return uniqueDates([values.windowStartAt, values.deadlineAt]);
+
+  const { validUntil } = resolveEventTime(values);
+  if (validUntil) return [validUntil];
+  if (values.deadlineAt) return [values.deadlineAt];
+  return [];
+}
+
 function formatRange(start: Date, end: Date) {
   const startText = formatDateTime(start);
   const sameDay = start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth() && start.getDate() === end.getDate();
@@ -89,4 +100,8 @@ function formatDateTime(value: Date) {
 
 function formatTime(value: Date) {
   return `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
+}
+
+function uniqueDates(values: Date[]) {
+  return values.filter((value, index) => values.findIndex((candidate) => candidate.getTime() === value.getTime()) === index);
 }
