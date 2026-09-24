@@ -1,9 +1,10 @@
 import { AgentRunKind, AgentRunSource, AgentRunStatus } from "@prisma/client";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { mapEventTypeToStage, parseAgentJson, requireAgentAuth, serverError } from "@/lib/agent-api";
+import { parseAgentJson, requireAgentAuth, serverError } from "@/lib/agent-api";
 import { completeAgentRunLog, createAgentRunLog } from "@/lib/agent-auth";
 import { agentEventCreateSchema } from "@/lib/agent-schemas";
+import { appendApplicationEvent } from "@/lib/domain/applications";
 
 export async function POST(request: Request) {
   const auth = await requireAgentAuth();
@@ -42,35 +43,21 @@ export async function POST(request: Request) {
   });
 
   try {
-    const event = await prisma.event.create({
-      data: {
-        applicationId,
-        aiProvider: body.provider || "external-agent",
-        aiNote: body.aiNote || "Written through the external agent API.",
-        eventType: body.eventType,
-        eventTime: body.eventTime ? new Date(body.eventTime) : null,
-        title: body.title,
-        artifactName: body.artifactName || null,
-        artifactUrl: body.artifactUrl || null,
-        detailsJson: JSON.stringify({
-          content: body.content || "",
-          requirements: body.requirements
-        })
-      }
+    const event = await appendApplicationEvent({
+      userId: auth.user.id,
+      applicationId,
+      aiProvider: body.provider || "external-agent",
+      aiNote: body.aiNote || "Written through the external agent API.",
+      eventType: body.eventType,
+      eventTime: body.eventTime ? new Date(body.eventTime) : null,
+      title: body.title,
+      artifactName: body.artifactName || null,
+      artifactUrl: body.artifactUrl || null,
+      detailsJson: JSON.stringify({
+        content: body.content || "",
+        requirements: body.requirements
+      })
     });
-
-    const mappedStage = mapEventTypeToStage(body.eventType);
-
-    if (mappedStage) {
-      await prisma.application.update({
-        where: { id: applicationId },
-        data: { currentStage: mappedStage }
-      });
-      await prisma.jobLead.update({
-        where: { id: application.jobLeadId },
-        data: { status: mappedStage }
-      });
-    }
 
     await completeAgentRunLog({
       agentRunId: run.id,

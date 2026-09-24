@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
-import { ApplicationStage, EventType } from "@prisma/client";
 import { z, type ZodTypeAny } from "zod";
 import { authenticateAgentRequest } from "@/lib/agent-auth";
-import { isAssessmentEventType, isInterviewEventType } from "@/lib/event-types";
 
 export async function requireAgentAuth() {
   const apiToken = await authenticateAgentRequest();
@@ -79,16 +77,4 @@ export async function parseAgentJson<TSchema extends ZodTypeAny>(request: Reques
     ok: true as const,
     data: parsed.data
   };
-}
-
-export function mapEventTypeToStage(eventType: EventType) {
-  return isInterviewEventType(eventType)
-    ? ApplicationStage.FIRST_INTERVIEW
-    : isAssessmentEventType(eventType)
-      ? ApplicationStage.ASSESSMENT
-      : eventType === "OFFER"
-        ? ApplicationStage.OFFER
-        : eventType === "REJECTION"
-          ? ApplicationStage.REJECTED
-          : undefined;
 }

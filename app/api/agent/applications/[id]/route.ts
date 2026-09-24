@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { parseAgentJson, requireAgentAuth, serverError } from "@/lib/agent-api";
 import { completeAgentRunLog, createAgentRunLog } from "@/lib/agent-auth";
 import { agentApplicationPatchSchema } from "@/lib/agent-schemas";
+import { updateApplicationStatus } from "@/lib/domain/applications";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAgentAuth();
@@ -45,18 +46,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   });
 
   try {
-    const updatedApplication = await prisma.application.update({
-      where: { id: application.id },
-      data: {
-        currentStage: requestedStage,
-        note: note === undefined ? undefined : note || null,
-        appliedAt: requestedStage === ApplicationStage.APPLIED ? new Date() : undefined
-      }
-    });
-
-    await prisma.jobLead.update({
-      where: { id: application.jobLeadId },
-      data: { status: requestedStage }
+    const updatedApplication = await updateApplicationStatus({
+      userId: auth.user.id,
+      applicationId: application.id,
+      requestedStage,
+      note: note === undefined ? undefined : note || null
     });
 
     await completeAgentRunLog({

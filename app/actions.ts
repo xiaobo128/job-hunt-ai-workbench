@@ -46,7 +46,7 @@ import { redirect } from "next/navigation";
 import { saveUpload } from "@/lib/storage";
 import { generateApiTokenValue, sha256 } from "@/lib/agent-auth";
 import { triggerOutboundWebhook } from "@/lib/agent-webhooks";
-import { isAssessmentEventType, isInterviewEventType } from "@/lib/event-types";
+import { appendApplicationEvent, updateApplicationStatus } from "@/lib/domain/applications";
 
 const EXCEL_IMPORT_MAX_BYTES = 5 * 1024 * 1024;
 const excelHeaderAliases: Record<string, string[]> = {
@@ -440,30 +440,13 @@ export async function updateApplicationStage(formData: FormData) {
     throw new Error("Invalid application stage");
   }
 
-  const application = await prisma.application.findFirst({
-    where: { id: applicationId, jobLead: { ownerId: user.id } }
-  });
-
-  if (!application) {
-    throw new Error("Application not found");
-  }
-
-  await prisma.application.update({
-    where: { id: applicationId },
-    data: {
-      currentStage: stage,
-      submissionChannel,
-      nextAction,
-      note,
-      appliedAt: stage === ApplicationStage.APPLIED && application.currentStage !== ApplicationStage.APPLIED ? new Date() : undefined
-    }
-  });
-
-  await prisma.jobLead.update({
-    where: { id: application.jobLeadId },
-    data: {
-      status: stage
-    }
+  const application = await updateApplicationStatus({
+    userId: user.id,
+    applicationId,
+    requestedStage: stage,
+    submissionChannel,
+    nextAction,
+    note
   });
 
   revalidatePath("/");
@@ -2260,18 +2243,6 @@ function sanitizeFileName(value: string) {
   return value.replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim() || "定制简历";
 }
 
-function mapEventTypeToStage(eventType: EventType) {
-  return isInterviewEventType(eventType)
-    ? ApplicationStage.FIRST_INTERVIEW
-    : isAssessmentEventType(eventType)
-      ? ApplicationStage.ASSESSMENT
-      : eventType === "OFFER"
-        ? ApplicationStage.OFFER
-        : eventType === "REJECTION"
-          ? ApplicationStage.REJECTED
-          : undefined;
-}
-
 function safeParseEventDetails(detailsJson: string) {
   try {
     const parsed = JSON.parse(detailsJson) as { content?: unknown; requirements?: unknown };
@@ -2456,20 +2427,19 @@ export async function createNotificationEvent(
 
     const title = requestedTitle || content.replace(/\s+/g, " ").trim().slice(0, 100) || "导入通知";
 
-    const event = await prisma.event.create({
-      data: {
-        applicationId: application.id,
-        eventType,
-        title,
-        eventTime: eventTime.value,
-        windowStartAt: windowStartAt.value,
-        deadlineAt: deadlineAt.value,
-        receivedAt: receivedAt.value,
-        relativeValidityMinutes,
-        artifactName: uploaded?.originalName,
-        artifactUrl: uploaded?.fileUrl,
-        detailsJson: JSON.stringify({ content, requirements: [] })
-      }
+    const event = await appendApplicationEvent({
+      userId: user.id,
+      applicationId: application.id,
+      eventType,
+      title,
+      eventTime: eventTime.value,
+      windowStartAt: windowStartAt.value,
+      deadlineAt: deadlineAt.value,
+      receivedAt: receivedAt.value,
+      relativeValidityMinutes,
+      artifactName: uploaded?.originalName,
+      artifactUrl: uploaded?.fileUrl,
+      detailsJson: JSON.stringify({ content, requirements: [] })
     });
 
     revalidatePath("/");
