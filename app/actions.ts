@@ -96,7 +96,8 @@ function mapExcelStage(value: string): ApplicationStage {
   const normalized = value.replace(/\s/g, "").toLowerCase();
   if (/待投递|未投递|准备投递/.test(normalized)) return ApplicationStage.READY_TO_APPLY;
   if (/已投递|已申请|已网申/.test(normalized)) return ApplicationStage.APPLIED;
-  if (/测评|笔试/.test(normalized)) return ApplicationStage.ASSESSMENT;
+  if (/笔试/.test(normalized)) return ApplicationStage.WRITTEN_TEST;
+  if (/测评/.test(normalized)) return ApplicationStage.ASSESSMENT;
   if (/ai面|一面/.test(normalized)) return ApplicationStage.FIRST_INTERVIEW;
   if (/二面/.test(normalized)) return ApplicationStage.SECOND_INTERVIEW;
   if (/三面/.test(normalized)) return ApplicationStage.THIRD_INTERVIEW;

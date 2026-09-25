@@ -4,7 +4,8 @@ import { updateApplicationStage } from "@/app/actions";
 const stageNodes = [
   { label: "已保存 / 待投递", stage: "READY_TO_APPLY", matches: ["INTERESTED", "READY_TO_APPLY"] },
   { label: "已投递", stage: "APPLIED", matches: ["APPLIED"] },
-  { label: "笔试", stage: "ASSESSMENT", matches: ["ASSESSMENT"] },
+  { label: "提交测评", stage: "ASSESSMENT", matches: ["ASSESSMENT"] },
+  { label: "笔试", stage: "WRITTEN_TEST", matches: ["WRITTEN_TEST"] },
   {
     label: "面试",
     stage: "INTERVIEW",
@@ -33,7 +34,7 @@ export function JobStageProgress({
   return (
     <div>
       <div className="overflow-x-auto pb-1">
-        <div className="relative min-w-[620px]">
+        <div className="relative min-w-[744px]">
           <div aria-hidden="true" className="absolute left-[10%] right-[10%] top-4 h-px bg-line" />
           <ol aria-label="求职阶段进度" className="flex items-start justify-between gap-2 px-1">
             {stageNodes.map((node, index) => {

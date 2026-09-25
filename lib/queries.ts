@@ -315,7 +315,7 @@ export async function getDashboardData() {
   for (const application of applications) {
     if (application.currentStage === "INTERESTED" || application.currentStage === "READY_TO_APPLY") progress.readyToApply += 1;
     else if (application.currentStage === "APPLIED") progress.applied += 1;
-    else if (application.currentStage === "ASSESSMENT") progress.assessment += 1;
+    else if (["ASSESSMENT", "WRITTEN_TEST"].includes(application.currentStage)) progress.assessment += 1;
     else if (["INTERVIEW", "FIRST_INTERVIEW", "SECOND_INTERVIEW", "THIRD_INTERVIEW", "FINAL_INTERVIEW"].includes(application.currentStage)) progress.interview += 1;
     else if (application.currentStage === "OFFER") progress.offer += 1;
   }
