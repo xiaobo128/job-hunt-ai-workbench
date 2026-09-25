@@ -27,38 +27,94 @@ export function matchRecruitmentEventToApplications(
   candidates: readonly RecruitmentApplicationCandidate[]
 ): RecruitmentApplicationMatch[] {
   const companyHint = normalizeCompanyName(extraction.companyHint);
-  const roleHint = normalizeComparableText(extraction.roleHint);
+  const roleHint = normalizeRoleTitle(extraction.roleHint);
   const addressHint = normalizeCityText(extraction.offlineAddress);
 
-  if (!companyHint && !roleHint) {
-    return [];
-  }
-
-  return candidates
+  const scoredCandidates = candidates
     .map((candidate) => {
+      const normalizedCandidateCompany = normalizeCompanyName(candidate.companyName);
+      const normalizedCandidateRole = normalizeRoleTitle(candidate.roleTitle);
       const companySimilarity = companyHint
-        ? companyNameSimilarity(companyHint, normalizeCompanyName(candidate.companyName))
+        ? companyNameSimilarity(companyHint, normalizedCandidateCompany)
         : 0;
       const roleSimilarity = roleHint
-        ? tokenOverlap(roleTokens(roleHint), roleTokens(normalizeComparableText(candidate.roleTitle)))
+        ? tokenOverlap(roleTokens(roleHint), roleTokens(normalizedCandidateRole))
         : 0;
       const cityMatch = addressHint && candidate.city
         ? cityAppearsInAddress(normalizeCityText(candidate.city), addressHint)
         : false;
       const score = Math.round(companySimilarity * 70 + roleSimilarity * 25 + (cityMatch ? 5 : 0));
       const reasons = matchingReasons({ companySimilarity, roleSimilarity, cityMatch, candidate });
+      const confidence = matchConfidence({ companySimilarity, roleSimilarity, cityMatch, score });
 
       return {
-        applicationId: candidate.applicationId,
-        companyName: candidate.companyName,
-        roleTitle: candidate.roleTitle,
-        score,
-        confidence: matchConfidence({ companySimilarity, roleSimilarity, cityMatch, score }),
-        reasons
+        match: {
+          applicationId: candidate.applicationId,
+          companyName: candidate.companyName,
+          roleTitle: candidate.roleTitle,
+          score,
+          confidence,
+          reasons
+        } satisfies RecruitmentApplicationMatch,
+        debug: {
+          applicationId: candidate.applicationId,
+          companyName: candidate.companyName,
+          normalizedCompany: normalizedCandidateCompany,
+          roleTitle: candidate.roleTitle,
+          normalizedRole: normalizedCandidateRole,
+          companyScore: Math.round(companySimilarity * 100),
+          roleScore: Math.round(roleSimilarity * 100),
+          cityMatch,
+          finalScore: score,
+          confidence,
+          failureReasons: highConfidenceFailureReasons({ companySimilarity, roleSimilarity, cityMatch, score })
+        }
       };
-    })
+    });
+
+  const matches = scoredCandidates
+    .map(({ match }) => match)
     .filter((match) => match.score >= 20)
     .sort((left, right) => right.score - left.score || left.applicationId.localeCompare(right.applicationId));
+
+  const highConfidenceMatches = matches.filter((match) => match.confidence === "HIGH");
+  const failureReason = !companyHint && !roleHint
+    ? "MISSING_COMPANY_AND_ROLE_HINTS"
+    : highConfidenceMatches.length === 0
+      ? "NO_HIGH_CONFIDENCE_MATCH"
+      : highConfidenceMatches.length > 1
+        ? "AMBIGUOUS_HIGH_CONFIDENCE_MATCH"
+        : null;
+
+  console.info("[recruitment-event-matching] match result", {
+    extractionCompanyHint: extraction.companyHint,
+    normalizedCompany: companyHint,
+    extractionRoleHint: extraction.roleHint,
+    normalizedRole: roleHint,
+    candidates: scoredCandidates.map(({ debug }) => debug),
+    highConfidenceApplicationIds: highConfidenceMatches.map((match) => match.applicationId),
+    failureReason
+  });
+
+  return matches;
+}
+
+function highConfidenceFailureReasons({
+  companySimilarity,
+  roleSimilarity,
+  cityMatch,
+  score
+}: {
+  companySimilarity: number;
+  roleSimilarity: number;
+  cityMatch: boolean;
+  score: number;
+}) {
+  const reasons: string[] = [];
+  if (companySimilarity < 0.9) reasons.push("COMPANY_SIMILARITY_BELOW_HIGH_THRESHOLD");
+  if (roleSimilarity < 0.5 && !cityMatch) reasons.push("ROLE_AND_CITY_EVIDENCE_BELOW_HIGH_THRESHOLD");
+  if (score < 80) reasons.push("FINAL_SCORE_BELOW_HIGH_THRESHOLD");
+  return reasons;
 }
 
 function matchConfidence({
@@ -118,8 +174,40 @@ function normalizeCompanyName(value: string | null | undefined) {
   while (/(?:有限责任公司|股份有限公司|有限公司|集团|公司|incorporated|inc|ltd|llc)$/.test(normalized)) {
     normalized = normalized.replace(/(?:有限责任公司|股份有限公司|有限公司|集团|公司|incorporated|inc|ltd|llc)$/, "");
   }
+  if (TENCENT_COMPANY_ALIASES.has(normalized)) {
+    return "腾讯";
+  }
   return normalized;
 }
+
+const TENCENT_COMPANY_ALIASES = new Set([
+  "腾讯",
+  "腾讯云",
+  "腾讯云与智慧产业事业群",
+  "腾讯云与智慧产业事业群csig",
+  "csig",
+  "腾讯csig"
+]);
+
+function normalizeRoleTitle(value: string | null | undefined) {
+  let normalized = normalizeComparableText(value);
+  for (const prefix of TENCENT_ROLE_PREFIXES) {
+    if (normalized.startsWith(prefix)) {
+      normalized = normalized.slice(prefix.length);
+      break;
+    }
+  }
+  return normalized;
+}
+
+const TENCENT_ROLE_PREFIXES = [
+  "腾讯云与智慧产业事业群csig",
+  "腾讯云与智慧产业事业群",
+  "腾讯云csig",
+  "腾讯csig",
+  "腾讯云",
+  "csig"
+];
 
 function normalizeComparableText(value: string | null | undefined) {
   return (value || "")

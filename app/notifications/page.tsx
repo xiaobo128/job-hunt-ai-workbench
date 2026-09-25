@@ -6,25 +6,18 @@ import { requireSessionUser } from "@/lib/session";
 
 export default async function NotificationsPage() {
   const user = await requireSessionUser();
-  const [applications, applicationOptions] = await Promise.all([
-    prisma.application.findMany({
-      where: {
-        currentStage: { notIn: ["CLOSED", "REJECTED"] },
-        jobLead: { ownerId: user.id, status: { notIn: ["CLOSED", "REJECTED"] } },
-        events: { some: {} }
-      },
-      include: {
-        jobLead: { select: { companyName: true, roleTitle: true } },
-        _count: { select: { events: true } }
-      },
-      orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }]
-    }),
-    prisma.application.findMany({
-      where: { currentStage: { notIn: ["CLOSED", "REJECTED"] }, jobLead: { ownerId: user.id, status: { notIn: ["CLOSED", "REJECTED"] } } },
-      include: { jobLead: { select: { companyName: true, roleTitle: true } } },
-      orderBy: { updatedAt: "desc" }
-    })
-  ]);
+  const applications = await prisma.application.findMany({
+    where: {
+      currentStage: { notIn: ["CLOSED", "REJECTED"] },
+      jobLead: { ownerId: user.id, status: { notIn: ["CLOSED", "REJECTED"] } },
+      events: { some: {} }
+    },
+    include: {
+      jobLead: { select: { companyName: true, roleTitle: true } },
+      _count: { select: { events: true } }
+    },
+    orderBy: [{ displayOrder: "asc" }, { createdAt: "asc" }, { id: "asc" }]
+  });
   const opportunities = applications
     .sort(compareApplicationOrder)
     .map((application) => ({
@@ -35,7 +28,7 @@ export default async function NotificationsPage() {
       notificationCount: application._count.events
     }));
 
-  return <PageShell title="通知管理" description="按求职机会查看通知历史，并可拖动调整机会优先级。" action={<AddNotificationDialog applications={applicationOptions.map((application) => ({ id: application.id, label: `${application.jobLead.companyName} | ${application.jobLead.roleTitle}` }))} />}>
+  return <PageShell title="通知管理" description="按求职机会查看通知历史，并可拖动调整机会优先级。" action={<AddNotificationDialog />}>
     {opportunities.length === 0 ? <div className="rounded-3xl border border-line bg-white p-6 text-sm text-slate-500 shadow-card">还没有通知记录。可以用右上角按钮先导入第一条。</div> : <NotificationOpportunityList initialOpportunities={opportunities} />}
   </PageShell>;
 }

@@ -47,6 +47,7 @@ export async function createRecruitmentEventProposalIfHighConfidence(input: {
   }
 
   const match = highConfidenceMatches[0];
+  const schedule = eventScheduleFields(input.extraction.schedule);
   const proposal = await createAgentProposal({
     userId: input.userId,
     input: {
@@ -55,7 +56,9 @@ export async function createRecruitmentEventProposalIfHighConfidence(input: {
       payload: {
         eventType,
         title: proposalTitle(input.subject, input.extraction),
-        eventTime: input.extraction.eventTime,
+        eventTime: schedule.eventTime,
+        windowStartAt: schedule.windowStartAt,
+        deadlineAt: schedule.deadlineAt,
         receivedAt: confirmedIsoDateTime(input.receivedAt),
         detailsJson: JSON.stringify({
           content: input.content,
@@ -65,7 +68,7 @@ export async function createRecruitmentEventProposalIfHighConfidence(input: {
             companyHint: input.extraction.companyHint,
             roleHint: input.extraction.roleHint,
             intent: input.extraction.intent,
-            deadline: input.extraction.deadline,
+            schedule: input.extraction.schedule,
             deliveryMode: input.extraction.deliveryMode,
             onlineUrl: input.extraction.onlineUrl,
             offlineAddress: input.extraction.offlineAddress,
@@ -102,6 +105,19 @@ function proposalTitle(subject: string, extraction: RecruitmentEventExtraction) 
 function confirmedIsoDateTime(value: string | null) {
   if (!value || !isoDateTimeWithOffset.safeParse(value).success) return null;
   return value;
+}
+
+function eventScheduleFields(schedule: RecruitmentEventExtraction["schedule"]) {
+  if (schedule.type === "FIXED_TIME") {
+    return { eventTime: schedule.startAt, windowStartAt: null, deadlineAt: null };
+  }
+  if (schedule.type === "TIME_WINDOW") {
+    return { eventTime: null, windowStartAt: schedule.startAt, deadlineAt: schedule.endAt };
+  }
+  if (schedule.type === "DEADLINE") {
+    return { eventTime: null, windowStartAt: null, deadlineAt: schedule.endAt };
+  }
+  return { eventTime: null, windowStartAt: null, deadlineAt: null };
 }
 
 function normalizedIdentifier(value: string | null | undefined) {

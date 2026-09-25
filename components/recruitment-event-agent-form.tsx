@@ -74,8 +74,7 @@ function Result({ state }: { state: RecruitmentEventAgentState }) {
           <ResultValue label="岗位线索" value={extraction.roleHint} />
           <ResultValue label="事件类型" value={extraction.eventType} />
           <ResultValue label="意图" value={extraction.intent} />
-          <ResultValue label="事件时间" value={extraction.eventTime} />
-          <ResultValue label="截止时间" value={extraction.deadline} />
+          <ResultValue label="时间安排" value={scheduleText(extraction.schedule)} />
           <ResultValue label="方式" value={extraction.deliveryMode} />
           <ResultValue label="线上链接" value={extraction.onlineUrl} />
           <ResultValue label="线下地点" value={extraction.offlineAddress} />
@@ -102,6 +101,13 @@ function Result({ state }: { state: RecruitmentEventAgentState }) {
 function ResultValue({ label, value }: { label: string; value: string | readonly string[] | null }) {
   const text = Array.isArray(value) ? value.join("；") : value;
   return <div><dt className="text-slate-500">{label}</dt><dd className="mt-1 whitespace-pre-wrap text-ink">{text || "未知"}</dd></div>;
+}
+
+function scheduleText(schedule: NonNullable<RecruitmentEventAgentState["extraction"]>["schedule"]) {
+  if (schedule.type === "FIXED_TIME") return schedule.startAt ? `固定时间：${schedule.startAt}` : "固定时间未提供";
+  if (schedule.type === "TIME_WINDOW") return `有效时间：${schedule.startAt || "未提供"} 至 ${schedule.endAt || "未提供"}`;
+  if (schedule.type === "DEADLINE") return schedule.endAt ? `截止时间：${schedule.endAt}` : "截止时间未提供";
+  return "未知";
 }
 
 function confidenceClass(confidence: "HIGH" | "MEDIUM" | "LOW") {
