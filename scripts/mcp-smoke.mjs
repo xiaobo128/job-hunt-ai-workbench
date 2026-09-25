@@ -26,11 +26,13 @@ function errorCode(response) {
 
 const { tools } = await client.listTools();
 assert.deepEqual(tools.map((tool) => tool.name).sort(), [
+  "append_application_event",
   "get_application",
   "get_resume",
   "get_today_application_events",
   "get_upcoming_deadlines",
-  "list_applications"
+  "list_applications",
+  "update_application_status"
 ]);
 
 const listed = await client.callTool({ name: "list_applications", arguments: {} });

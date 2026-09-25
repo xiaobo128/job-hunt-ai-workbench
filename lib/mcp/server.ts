@@ -1,6 +1,7 @@
 import { ApplicationStage } from "@prisma/client";
 import { createMcpHandler, fromJsonSchema, McpServer } from "@modelcontextprotocol/server";
 import { prisma } from "@/lib/db";
+import { AgentProposalError, executeConfirmedAgentProposal } from "@/lib/domain/agent-proposals";
 import { getCalendarEventDates, getDashboardEventDueAt, resolveEventTime } from "@/lib/event-time";
 import { ConfirmedResumeDocumentError, loadConfirmedResumeDocument } from "@/lib/resume-parsing/confirmed";
 import { uniqueCriticalEvents } from "@/lib/workflow";
@@ -31,6 +32,12 @@ const upcomingDeadlinesInput = fromJsonSchema<{ days?: number }>({
   properties: { days: { type: "integer", minimum: 1, maximum: 31 } },
   additionalProperties: false
 });
+const proposalIdInput = fromJsonSchema<{ proposalId: string }>({
+  type: "object",
+  properties: { proposalId: { type: "string", minLength: 1 } },
+  required: ["proposalId"],
+  additionalProperties: false
+});
 
 type JsonObject = Record<string, unknown>;
 
@@ -58,6 +65,17 @@ function error(code: string, message: string) {
     content: [{ type: "text" as const, text: JSON.stringify({ error: code, message }) }],
     isError: true
   };
+}
+
+function proposalError(cause: AgentProposalError) {
+  switch (cause.code) {
+    case "NOT_CONFIRMED": return error("proposal_not_confirmed", "The proposal must be confirmed in the web app before it can be executed.");
+    case "REJECTED": return error("proposal_rejected", "The proposal was rejected in the web app.");
+    case "ALREADY_EXECUTED": return error("proposal_already_executed", "The proposal has already been executed and cannot be replayed.");
+    case "TYPE_MISMATCH": return error("proposal_type_mismatch", "Proposal does not match this write tool.");
+    case "INVALID_PAYLOAD": return error("proposal_invalid", "The stored proposal payload is invalid.");
+    default: return error("proposal_not_found", "Proposal not found.");
+  }
 }
 
 function activeApplicationWhere(userId: string) {
@@ -225,6 +243,46 @@ export const mcpHandler = createMcpHandler(({ authInfo }) => {
         return result({ startDate: today.toISOString().slice(0, 10), days, deadlines });
       } catch {
         return error("read_failed", "Unable to read upcoming deadlines.");
+      }
+    }
+  );
+
+  server.registerTool(
+    "update_application_status",
+    {
+      description: "Execute one previously confirmed application-status proposal. The exact status payload is loaded from the proposal; this tool cannot alter it.",
+      inputSchema: proposalIdInput,
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false }
+    },
+    async ({ proposalId }) => {
+      const authenticatedUserId = requireUserId();
+      if (!authenticatedUserId) return error("unauthorized", "Authentication is required.");
+      try {
+        const executed = await executeConfirmedAgentProposal({ userId: authenticatedUserId, proposalId, expectedType: "APPLICATION_STATUS_UPDATE" });
+        return result({ proposalId, applicationId: executed.applicationId, executed: true });
+      } catch (cause) {
+        if (cause instanceof AgentProposalError) return proposalError(cause);
+        return error("write_failed", "Unable to execute the confirmed proposal.");
+      }
+    }
+  );
+
+  server.registerTool(
+    "append_application_event",
+    {
+      description: "Execute one previously confirmed application-event proposal. The exact event payload is loaded from the proposal; this tool cannot alter it.",
+      inputSchema: proposalIdInput,
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false }
+    },
+    async ({ proposalId }) => {
+      const authenticatedUserId = requireUserId();
+      if (!authenticatedUserId) return error("unauthorized", "Authentication is required.");
+      try {
+        const executed = await executeConfirmedAgentProposal({ userId: authenticatedUserId, proposalId, expectedType: "APPLICATION_EVENT_APPEND" });
+        return result({ proposalId, applicationId: executed.applicationId, eventId: executed.eventId, executed: true });
+      } catch (cause) {
+        if (cause instanceof AgentProposalError) return proposalError(cause);
+        return error("write_failed", "Unable to execute the confirmed proposal.");
       }
     }
   );

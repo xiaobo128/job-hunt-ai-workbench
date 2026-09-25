@@ -1,5 +1,5 @@
-import { ApplicationStage, EventType } from "@prisma/client";
-import { prisma } from "@/lib/db";
+import { ApplicationStage, EventType, Prisma } from "@prisma/client";
+import { prisma } from "../db";
 
 export class ApplicationNotFoundError extends Error {
   constructor() {
@@ -25,8 +25,8 @@ export async function updateApplicationStatus({
   note,
   nextAction,
   submissionChannel
-}: UpdateApplicationStatusInput) {
-  return prisma.$transaction(async (tx) => {
+}: UpdateApplicationStatusInput, transaction?: Prisma.TransactionClient) {
+  const run = async (tx: Prisma.TransactionClient) => {
     const application = await tx.application.findFirst({
       where: { id: applicationId, jobLead: { ownerId: userId } },
       select: { id: true, jobLeadId: true, currentStage: true }
@@ -56,7 +56,9 @@ export async function updateApplicationStatus({
     });
 
     return updatedApplication;
-  });
+  };
+
+  return transaction ? run(transaction) : prisma.$transaction(run);
 }
 
 type AppendApplicationEventInput = {
@@ -77,8 +79,9 @@ type AppendApplicationEventInput = {
 };
 
 /** Appends an event without inferring or changing an application stage. */
-export async function appendApplicationEvent({ userId, applicationId, ...event }: AppendApplicationEventInput) {
-  const application = await prisma.application.findFirst({
+export async function appendApplicationEvent({ userId, applicationId, ...event }: AppendApplicationEventInput, transaction?: Prisma.TransactionClient) {
+  const client = transaction ?? prisma;
+  const application = await client.application.findFirst({
     where: { id: applicationId, jobLead: { ownerId: userId } },
     select: { id: true }
   });
@@ -87,7 +90,7 @@ export async function appendApplicationEvent({ userId, applicationId, ...event }
     throw new ApplicationNotFoundError();
   }
 
-  return prisma.event.create({
+  return client.event.create({
     data: {
       applicationId: application.id,
       ...event
