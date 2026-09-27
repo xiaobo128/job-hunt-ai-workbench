@@ -114,8 +114,9 @@ function confidenceClass(confidence: "HIGH" | "MEDIUM" | "LOW") {
   return confidence === "HIGH" ? "bg-emerald-100 text-emerald-800" : confidence === "MEDIUM" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700";
 }
 
-function proposalMessage(reason: "UNKNOWN_EVENT_TYPE" | "NO_HIGH_CONFIDENCE_MATCH" | "AMBIGUOUS_HIGH_CONFIDENCE_MATCH") {
+function proposalMessage(reason: "UNKNOWN_EVENT_TYPE" | "NO_HIGH_CONFIDENCE_MATCH" | "AMBIGUOUS_HIGH_CONFIDENCE_MATCH" | "INVALID_SELECTED_APPLICATION") {
   if (reason === "UNKNOWN_EVENT_TYPE") return "事件类型未知";
   if (reason === "AMBIGUOUS_HIGH_CONFIDENCE_MATCH") return "存在多个同等高置信候选";
+  if (reason === "INVALID_SELECTED_APPLICATION") return "所选申请不在合理候选中";
   return "没有唯一 HIGH confidence 匹配";
 }

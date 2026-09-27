@@ -15,6 +15,15 @@ export type RecruitmentEventAgentState = {
   extraction?: RecruitmentEventExtraction;
   matches?: RecruitmentApplicationMatch[];
   proposal?: RecruitmentEventProposalResult;
+  input?: RecruitmentEventAgentInput;
+};
+
+type RecruitmentEventAgentInput = {
+  subject: string;
+  sender: string;
+  receivedAt: string | null;
+  content: string;
+  identifier: string | null;
 };
 
 export async function processRecruitmentEvent(
@@ -22,6 +31,42 @@ export async function processRecruitmentEvent(
   formData: FormData
 ): Promise<RecruitmentEventAgentState> {
   const user = await requireSessionUser();
+  const selectedApplicationId = optionalTextValue(formData, "selectedApplicationId");
+
+  if (selectedApplicationId) {
+    if (
+      _previousState.status !== "success" ||
+      !_previousState.extraction ||
+      !_previousState.proposal ||
+      _previousState.proposal.created ||
+      !_previousState.input
+    ) {
+      return { status: "error", message: "候选申请已失效，请重新解析通知。" };
+    }
+
+    try {
+      const proposal = await createRecruitmentEventProposalIfHighConfidence({
+        userId: user.id,
+        extraction: _previousState.extraction,
+        candidates: _previousState.proposal.candidates,
+        subject: _previousState.input.subject,
+        receivedAt: _previousState.input.receivedAt,
+        content: _previousState.input.content,
+        identifier: _previousState.input.identifier,
+        selectedApplicationId
+      });
+
+      if (!proposal.created) {
+        return { status: "error", message: "所选申请已失效，请重新解析通知。" };
+      }
+
+      revalidatePath("/proposals");
+      return { ..._previousState, proposal };
+    } catch {
+      return { status: "error", message: "创建通知确认项失败，请重新解析后再试。" };
+    }
+  }
+
   const subject = textValue(formData, "subject");
   const sender = textValue(formData, "sender");
   const receivedAt = optionalTextValue(formData, "receivedAt");
@@ -90,7 +135,8 @@ export async function processRecruitmentEvent(
       note: extracted.note,
       extraction: extracted.data,
       matches,
-      proposal
+      proposal,
+      input: { subject, sender, receivedAt, content, identifier }
     };
   } catch {
     return { status: "error", message: "招聘事件处理失败，请检查内容后重试。" };

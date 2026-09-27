@@ -64,7 +64,17 @@ function ImportResult({ state }: { state: RecruitmentEventAgentState }) {
   const result = state.proposal;
   if (!extraction || !result) return null;
 
-  if (!result.created) return <section className="rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-900"><h3 className="font-medium">暂时无法确认对应的求职记录</h3><p className="mt-1">请补充更完整的通知内容、公司或岗位信息后再试。</p></section>;
+  if (!result.created) {
+    if (result.reason === "UNKNOWN_EVENT_TYPE") {
+      return <section className="rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-900"><h3 className="font-medium">暂时无法识别通知类型</h3><p className="mt-1">请检查通知内容后重新解析。</p></section>;
+    }
+
+    if (!result.candidates.length) {
+      return <section className="rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-900"><h3 className="font-medium">暂时无法找到对应的求职记录</h3></section>;
+    }
+
+    return <section className="rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-950"><h3 className="font-medium">请选择对应的求职记录</h3><p className="mt-1 text-amber-800">通知中没有足够信息唯一确认岗位，请手动选择正确的申请。</p><div className="mt-3 space-y-2">{result.candidates.map((candidate) => <article key={candidate.applicationId} className="rounded-2xl border border-amber-200 bg-white p-3"><div className="flex flex-wrap items-center justify-between gap-3"><div><p className="font-medium text-ink">{candidate.companyName} · {candidate.roleTitle}</p><p className="mt-1 text-xs text-slate-500">匹配置信度 {candidate.confidence} · 分数 {candidate.score}</p></div><button type="submit" name="selectedApplicationId" value={candidate.applicationId} formNoValidate className="rounded-xl bg-ink px-3 py-2 text-xs font-medium text-white">选择此申请</button></div></article>)}</div></section>;
+  }
 
   return <section className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-950"><h3 className="font-medium">已识别通知信息</h3><dl className="mt-3 grid gap-3 sm:grid-cols-2"><ResultField label="公司" value={result.match.companyName} /><ResultField label="岗位" value={result.match.roleTitle} /><ResultField label="通知类型" value={getEventTypeLabel(extraction.eventType)} /><ScheduleResult schedule={extraction.schedule} /><ResultField label="方式" value={deliveryModeLabel(extraction.deliveryMode)} /><ResultField label="下一步行动" value={extraction.actions?.join("；") || null} />{extraction.onlineUrl ? <div><dt className="text-xs font-medium text-emerald-800">链接</dt><dd className="mt-1"><a href={extraction.onlineUrl} target="_blank" rel="noreferrer" className="font-medium underline underline-offset-4">打开会议链接</a></dd></div> : null}</dl></section>;
 }

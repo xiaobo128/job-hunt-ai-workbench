@@ -2,7 +2,10 @@ import { AgentProposalType, EventType } from "@prisma/client";
 import { z } from "zod";
 import type { RecruitmentEventExtraction } from "@/lib/ai";
 import { createAgentProposal } from "@/lib/domain/agent-proposals";
-import type { RecruitmentApplicationMatch } from "@/lib/recruitment-event-matching";
+import {
+  recruitmentEventSelectionCandidates,
+  type RecruitmentApplicationMatch
+} from "@/lib/recruitment-event-matching";
 
 const isoDateTimeWithOffset = z.string().datetime({ offset: true });
 
@@ -16,12 +19,13 @@ export type RecruitmentEventProposalResult =
     }
   | {
       created: false;
-      reason: "UNKNOWN_EVENT_TYPE" | "NO_HIGH_CONFIDENCE_MATCH" | "AMBIGUOUS_HIGH_CONFIDENCE_MATCH";
+      reason: "UNKNOWN_EVENT_TYPE" | "NO_HIGH_CONFIDENCE_MATCH" | "AMBIGUOUS_HIGH_CONFIDENCE_MATCH" | "INVALID_SELECTED_APPLICATION";
       candidates: readonly RecruitmentApplicationMatch[];
     };
 
 /**
- * Prepares the existing HITL proposal only when matching is unambiguous and high-confidence.
+ * Prepares the existing HITL proposal for either a unique HIGH match or an explicit
+ * user selection from the bounded HIGH/MEDIUM fallback candidates.
  * Persistence, ownership checks, and proposal validation remain inside createAgentProposal.
  */
 export async function createRecruitmentEventProposalIfHighConfidence(input: {
@@ -32,21 +36,35 @@ export async function createRecruitmentEventProposalIfHighConfidence(input: {
   receivedAt: string | null;
   content: string;
   identifier?: string | null;
+  selectedApplicationId?: string | null;
 }): Promise<RecruitmentEventProposalResult> {
+  const selectionCandidates = recruitmentEventSelectionCandidates(input.candidates);
   const eventType = toExistingEventType(input.extraction.eventType);
   if (!eventType) {
-    return { created: false, reason: "UNKNOWN_EVENT_TYPE", candidates: input.candidates };
+    return { created: false, reason: "UNKNOWN_EVENT_TYPE", candidates: selectionCandidates };
   }
 
   const highConfidenceMatches = input.candidates.filter((candidate) => candidate.confidence === "HIGH");
-  if (highConfidenceMatches.length === 0) {
-    return { created: false, reason: "NO_HIGH_CONFIDENCE_MATCH", candidates: input.candidates };
-  }
-  if (highConfidenceMatches.length > 1) {
-    return { created: false, reason: "AMBIGUOUS_HIGH_CONFIDENCE_MATCH", candidates: input.candidates };
+  let match: RecruitmentApplicationMatch;
+
+  if (input.selectedApplicationId) {
+    const selectedMatch = selectionCandidates.find(
+      (candidate) => candidate.applicationId === input.selectedApplicationId
+    );
+    if (!selectedMatch) {
+      return { created: false, reason: "INVALID_SELECTED_APPLICATION", candidates: selectionCandidates };
+    }
+    match = selectedMatch;
+  } else {
+    if (highConfidenceMatches.length === 0) {
+      return { created: false, reason: "NO_HIGH_CONFIDENCE_MATCH", candidates: selectionCandidates };
+    }
+    if (highConfidenceMatches.length > 1) {
+      return { created: false, reason: "AMBIGUOUS_HIGH_CONFIDENCE_MATCH", candidates: selectionCandidates };
+    }
+    match = highConfidenceMatches[0];
   }
 
-  const match = highConfidenceMatches[0];
   const schedule = eventScheduleFields(input.extraction.schedule);
   const proposal = await createAgentProposal({
     userId: input.userId,
@@ -89,7 +107,7 @@ export async function createRecruitmentEventProposalIfHighConfidence(input: {
     proposalId: proposal.id,
     status: proposal.status,
     match,
-    candidates: input.candidates
+    candidates: selectionCandidates
   };
 }
 

@@ -18,6 +18,17 @@ export type RecruitmentApplicationMatch = {
   reasons: string[];
 };
 
+const MAX_MANUAL_SELECTION_CANDIDATES = 3;
+
+/** Returns the small, ranked set that is safe to present for explicit user selection. */
+export function recruitmentEventSelectionCandidates(
+  candidates: readonly RecruitmentApplicationMatch[]
+) {
+  return candidates
+    .filter((candidate) => candidate.confidence === "HIGH" || candidate.confidence === "MEDIUM")
+    .slice(0, MAX_MANUAL_SELECTION_CANDIDATES);
+}
+
 /**
  * Scores existing application candidates using only explicit extraction hints.
  * It never reads persistence or chooses an application on behalf of a caller.
