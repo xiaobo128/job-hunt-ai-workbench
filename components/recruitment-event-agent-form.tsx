@@ -10,7 +10,9 @@ import {
 
 const initialRecruitmentEventAgentState: RecruitmentEventAgentState = { status: "idle" };
 
-export function RecruitmentEventAgentForm() {
+type ApplicationOption = { id: string; label: string };
+
+export function RecruitmentEventAgentForm({ applications }: { applications: ApplicationOption[] }) {
   const [state, formAction] = useActionState(processRecruitmentEvent, initialRecruitmentEventAgentState);
 
   return (
@@ -21,6 +23,13 @@ export function RecruitmentEventAgentForm() {
           <p className="mt-1 text-sm leading-6 text-slate-500">支持手工粘贴邮件或短信；不会连接 Gmail 或读取邮箱。</p>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
+          <label className="block text-sm text-slate-600">
+            关联岗位
+            <select required name="applicationId" defaultValue="" className="mt-2 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-ink outline-none">
+              <option value="" disabled>请选择关联申请</option>
+              {applications.map((application) => <option key={application.id} value={application.id}>{application.label}</option>)}
+            </select>
+          </label>
           <Field label="邮件主题" name="subject" placeholder="例如：产品经理一面邀请" />
           <Field label="发件人" name="sender" placeholder="recruiting@example.com" />
           <Field label="接收时间（可选）" name="receivedAt" placeholder="2026-09-25T09:30:00+08:00" />
@@ -37,7 +46,7 @@ export function RecruitmentEventAgentForm() {
           />
         </label>
         {state.status === "error" ? <p role="alert" className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{state.message}</p> : null}
-        <div className="flex justify-end"><SubmitButton /></div>
+        <div className="flex justify-end"><SubmitButton disabled={applications.length === 0} /></div>
       </form>
 
       {state.status === "success" ? <Result state={state} /> : null}
@@ -54,9 +63,9 @@ function Field({ label, name, placeholder }: { label: string; name: string; plac
   );
 }
 
-function SubmitButton() {
+function SubmitButton({ disabled }: { disabled: boolean }) {
   const { pending } = useFormStatus();
-  return <button disabled={pending} className="rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-70">{pending ? "正在分析…" : "分析并准备 Proposal"}</button>;
+  return <button disabled={pending || disabled} className="rounded-2xl bg-ink px-5 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-70">{pending ? "正在分析…" : "分析并准备 Proposal"}</button>;
 }
 
 function Result({ state }: { state: RecruitmentEventAgentState }) {
@@ -86,13 +95,8 @@ function Result({ state }: { state: RecruitmentEventAgentState }) {
       </section>
 
       <section className="rounded-3xl border border-line bg-white p-5 shadow-card">
-        <h2 className="text-lg font-semibold text-ink">申请匹配</h2>
-        {state.matches?.length ? <div className="mt-4 space-y-3">{state.matches.map((match) => <article key={match.applicationId} className="rounded-2xl border border-line p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-medium text-ink">{match.companyName} · {match.roleTitle}</h3><p className="mt-1 text-sm text-slate-500">{match.reasons.join("；") || "基础文本相似度"}</p></div><span className={`rounded-full px-3 py-1 text-xs font-medium ${confidenceClass(match.confidence)}`}>{match.confidence} · {match.score}</span></div></article>)}</div> : <p className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-500">没有足够证据匹配到现有申请。</p>}
-      </section>
-
-      <section className="rounded-3xl border border-line bg-white p-5 shadow-card">
         <h2 className="text-lg font-semibold text-ink">Proposal 结果</h2>
-        {proposal.created ? <div className="mt-3 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800"><p>已为 HIGH confidence 匹配创建待确认 Proposal：<span className="font-mono text-xs">{proposal.proposalId}</span></p><Link href="/proposals" className="mt-3 inline-flex rounded-xl bg-ink px-3 py-2 text-sm font-medium text-white">前往确认</Link></div> : <p className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">{proposalMessage(proposal.reason)} 未创建 Proposal。</p>}
+        {proposal.created ? <div className="mt-3 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-800"><p>已为 {proposal.application.companyName} · {proposal.application.roleTitle} 创建待确认 Proposal：<span className="font-mono text-xs">{proposal.proposalId}</span></p><Link href="/proposals" className="mt-3 inline-flex rounded-xl bg-ink px-3 py-2 text-sm font-medium text-white">前往确认</Link></div> : <p className="mt-3 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">事件类型未知，未创建 Proposal。</p>}
       </section>
     </div>
   );
@@ -108,15 +112,4 @@ function scheduleText(schedule: NonNullable<RecruitmentEventAgentState["extracti
   if (schedule.type === "TIME_WINDOW") return `有效时间：${schedule.startAt || "未提供"} 至 ${schedule.endAt || "未提供"}`;
   if (schedule.type === "DEADLINE") return schedule.endAt ? `截止时间：${schedule.endAt}` : "截止时间未提供";
   return "未知";
-}
-
-function confidenceClass(confidence: "HIGH" | "MEDIUM" | "LOW") {
-  return confidence === "HIGH" ? "bg-emerald-100 text-emerald-800" : confidence === "MEDIUM" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-700";
-}
-
-function proposalMessage(reason: "UNKNOWN_EVENT_TYPE" | "NO_HIGH_CONFIDENCE_MATCH" | "AMBIGUOUS_HIGH_CONFIDENCE_MATCH" | "INVALID_SELECTED_APPLICATION") {
-  if (reason === "UNKNOWN_EVENT_TYPE") return "事件类型未知";
-  if (reason === "AMBIGUOUS_HIGH_CONFIDENCE_MATCH") return "存在多个同等高置信候选";
-  if (reason === "INVALID_SELECTED_APPLICATION") return "所选申请不在合理候选中";
-  return "没有唯一 HIGH confidence 匹配";
 }
