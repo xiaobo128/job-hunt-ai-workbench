@@ -1,10 +1,10 @@
-# 🚀 Job Hunt AI Workbench
+# 🚀 AI求职管理助手
 
 > **把分散的岗位、简历和招聘通知，整理成一条清晰、可跟进、可与 AI 协作的求职流程。**
 
-Job Hunt AI Workbench 是一个面向求职者的智能求职工作台。它用 Web 应用管理真实的求职记录，再让 AI Agent 基于这些已确认的信息进行查询、总结、准备和状态同步建议。
+AI求职管理助手是一个面向求职者的智能求职工作台。它用 Web 应用管理真实的求职记录，再让 AI Agent 基于这些已确认的信息进行查询、总结、准备和状态同步建议。
 
-🌐 **在线体验地址：[访问 Job Hunt AI Workbench](https://project-iry1g.vercel.app)**
+🌐 **在线体验地址：[访问网站](https://project-iry1g.vercel.app)**
 
 你负责判断和确认，AI 负责整理与辅助。日常解析与推荐的 Agent 协作路径都保留了人工核对环节。
 
