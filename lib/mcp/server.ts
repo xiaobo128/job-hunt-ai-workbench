@@ -1,7 +1,8 @@
 import { ApplicationStage } from "@prisma/client";
 import { createMcpHandler, fromJsonSchema, McpServer } from "@modelcontextprotocol/server";
 import { prisma } from "@/lib/db";
-import { AgentProposalError, executeConfirmedAgentProposal } from "@/lib/domain/agent-proposals";
+import { AgentProposalError, createAgentProposal, executeConfirmedAgentProposal } from "@/lib/domain/agent-proposals";
+import { ApplicationStatusProposalError, proposeApplicationStatusUpdate, type ApplicationStatusProposalInput } from "@/lib/domain/application-status-proposals";
 import { getCalendarEventDates, getDashboardEventDueAt, resolveEventTime } from "@/lib/event-time";
 import { ConfirmedResumeDocumentError, loadConfirmedResumeDocument } from "@/lib/resume-parsing/confirmed";
 import { uniqueCriticalEvents } from "@/lib/workflow";
@@ -36,6 +37,18 @@ const proposalIdInput = fromJsonSchema<{ proposalId: string }>({
   type: "object",
   properties: { proposalId: { type: "string", minLength: 1 } },
   required: ["proposalId"],
+  additionalProperties: false
+});
+const proposeApplicationStatusUpdateInput = fromJsonSchema<ApplicationStatusProposalInput>({
+  type: "object",
+  properties: {
+    applicationId: { type: "string", minLength: 1 },
+    requestedStage: { type: "string", enum: Object.values(ApplicationStage) },
+    note: { type: "string", maxLength: 2000 },
+    nextAction: { type: "string", maxLength: 2000 },
+    submissionChannel: { type: "string", maxLength: 2000 }
+  },
+  required: ["applicationId", "requestedStage"],
   additionalProperties: false
 });
 
@@ -243,6 +256,40 @@ export const mcpHandler = createMcpHandler(({ authInfo }) => {
         return result({ startDate: today.toISOString().slice(0, 10), days, deadlines });
       } catch {
         return error("read_failed", "Unable to read upcoming deadlines.");
+      }
+    }
+  );
+
+  server.registerTool(
+    "propose_application_status_update",
+    {
+      description: "Create a human-review proposal for changing an owned, active application's stage. This never confirms or executes the change.",
+      inputSchema: proposeApplicationStatusUpdateInput,
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false }
+    },
+    async (input) => {
+      const authenticatedUserId = requireUserId();
+      if (!authenticatedUserId) return error("unauthorized", "Authentication is required.");
+      try {
+        const proposal = await proposeApplicationStatusUpdate({
+          userId: authenticatedUserId,
+          input,
+          dependencies: {
+            findOwnedApplication: ({ userId: ownerId, applicationId }) => prisma.application.findFirst({
+              where: { id: applicationId, jobLead: { ownerId } },
+              select: { id: true, currentStage: true }
+            }),
+            createProposal: createAgentProposal
+          }
+        });
+        return result(proposal);
+      } catch (cause) {
+        if (cause instanceof ApplicationStatusProposalError) {
+          return cause.code === "APPLICATION_CLOSED"
+            ? error("application_closed", "Closed or rejected applications cannot be updated.")
+            : error("not_found", "Application not found.");
+        }
+        return error("proposal_failed", "Unable to create the application status proposal.");
       }
     }
   );

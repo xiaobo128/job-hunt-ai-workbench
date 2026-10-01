@@ -33,6 +33,9 @@ export async function processRecruitmentEvent(
   if (!content.trim()) {
     return { status: "error", message: "请粘贴招聘邮件或通知正文。" };
   }
+  if (receivedAt && !isDateTimeLocal(receivedAt)) {
+    return { status: "error", message: "接收时间无效，请重新选择日期和时间。" };
+  }
 
   try {
     const application = await prisma.application.findFirst({
@@ -103,4 +106,8 @@ function optionalTextValue(formData: FormData, key: string) {
 function rawTextValue(formData: FormData, key: string) {
   const value = formData.get(key);
   return typeof value === "string" ? value : "";
+}
+
+function isDateTimeLocal(value: string) {
+  return /^\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d$/.test(value);
 }

@@ -32,7 +32,7 @@ export function RecruitmentEventAgentForm({ applications }: { applications: Appl
           </label>
           <Field label="邮件主题" name="subject" placeholder="例如：产品经理一面邀请" />
           <Field label="发件人" name="sender" placeholder="recruiting@example.com" />
-          <Field label="接收时间（可选）" name="receivedAt" placeholder="2026-09-25T09:30:00+08:00" />
+          <label className="block text-sm text-slate-600">接收时间（可选）<input type="datetime-local" name="receivedAt" step={60} className="mt-2 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-ink outline-none" /></label>
           <Field label="Message-ID / 来源标识（可选）" name="identifier" placeholder="<message-id@example.com>" />
         </div>
         <label className="block text-sm text-slate-600">
@@ -85,11 +85,11 @@ function Result({ state }: { state: RecruitmentEventAgentState }) {
           <ResultValue label="意图" value={extraction.intent} />
           <ResultValue label="时间安排" value={scheduleText(extraction.schedule)} />
           <ResultValue label="方式" value={extraction.deliveryMode} />
+          <ResultValue label="方式原文" value={extraction.deliveryModeRawText} />
           <ResultValue label="线上链接" value={extraction.onlineUrl} />
           <ResultValue label="线下地点" value={extraction.offlineAddress} />
           <ResultValue label="行动项" value={extraction.actions} />
           <ResultValue label="要求" value={extraction.requirements} />
-          <ResultValue label="摘要" value={extraction.summary} />
         </dl>
         <details className="mt-4 rounded-2xl bg-panel p-4"><summary className="cursor-pointer text-sm font-medium text-ink">来源证据</summary><pre className="mt-3 max-h-72 overflow-auto whitespace-pre-wrap text-xs leading-5 text-slate-700">{extraction.evidenceText}</pre></details>
       </section>

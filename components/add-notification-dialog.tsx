@@ -50,7 +50,7 @@ function ImportNotificationForm({ applications, onClose }: { applications: Appli
     <form action={formAction} className="mt-5 space-y-4">
       <label className="block text-sm text-slate-600">关联岗位<span className="ml-1 text-rose-600">*</span><select required name="applicationId" defaultValue="" className="mt-2 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-ink outline-none"><option value="" disabled>请选择关联申请</option>{applications.map((application) => <option key={application.id} value={application.id}>{application.label}</option>)}</select></label>
       {applications.length === 0 ? <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">当前没有可关联的有效申请，请先创建或恢复一个申请。</p> : null}
-      <div className="grid gap-4 sm:grid-cols-2"><ImportField label="邮件主题（可选）" name="subject" placeholder="例如：产品经理一面邀请" /><ImportField label="发件人（可选）" name="sender" placeholder="recruiting@example.com" /><ImportField label="接收时间（可选）" name="receivedAt" placeholder="2026-09-25T09:30:00+08:00" /></div>
+      <div className="grid gap-4 sm:grid-cols-2"><ImportField label="邮件主题（可选）" name="subject" placeholder="例如：产品经理一面邀请" /><ImportField label="发件人（可选）" name="sender" placeholder="recruiting@example.com" /><ReceivedAtField /></div>
       <label className="block text-sm text-slate-600">通知内容<textarea required name="content" rows={12} className="mt-2 w-full rounded-3xl border border-line bg-panel px-4 py-3 text-sm leading-6 text-ink outline-none" placeholder="例如：请于 2026-04-26 19:00 参加面试，并提前准备作品集。" /></label>
       {state.status === "error" ? <p role="alert" className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">{state.message || "解析通知失败，请稍后重试。"}</p> : null}
       {state.status === "success" ? <ImportResult state={state} /> : null}
@@ -63,6 +63,10 @@ function ImportField({ label, name, placeholder }: { label: string; name: string
   return <label className="block text-sm text-slate-600">{label}<input name={name} className="mt-2 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-ink outline-none" placeholder={placeholder} /></label>;
 }
 
+function ReceivedAtField() {
+  return <label className="block text-sm text-slate-600">接收时间（可选）<input type="datetime-local" name="receivedAt" step={60} className="mt-2 w-full rounded-2xl border border-line bg-panel px-4 py-3 text-sm text-ink outline-none" /></label>;
+}
+
 function ImportResult({ state }: { state: RecruitmentEventAgentState }) {
   const extraction = state.extraction;
   const result = state.proposal;
@@ -72,7 +76,7 @@ function ImportResult({ state }: { state: RecruitmentEventAgentState }) {
     return <section className="rounded-2xl bg-amber-50 p-4 text-sm leading-6 text-amber-900"><h3 className="font-medium">暂时无法识别通知类型</h3><p className="mt-1">请检查通知内容后重新解析。</p></section>;
   }
 
-  return <section className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-950"><h3 className="font-medium">已识别通知信息</h3><dl className="mt-3 grid gap-3 sm:grid-cols-2"><ResultField label="关联岗位" value={`${result.application.companyName} · ${result.application.roleTitle}`} /><ResultField label="通知类型" value={getEventTypeLabel(extraction.eventType)} /><ScheduleResult schedule={extraction.schedule} /><ResultField label="方式" value={deliveryModeLabel(extraction.deliveryMode)} /><ResultField label="下一步行动" value={extraction.actions?.join("；") || null} /><ResultField label="要求" value={extraction.requirements?.join("；") || null} /><ResultField label="摘要" value={extraction.summary} />{extraction.onlineUrl ? <div><dt className="text-xs font-medium text-emerald-800">链接</dt><dd className="mt-1"><a href={extraction.onlineUrl} target="_blank" rel="noreferrer" className="font-medium underline underline-offset-4">打开会议链接</a></dd></div> : null}{extraction.offlineAddress ? <ResultField label="线下地点" value={extraction.offlineAddress} /> : null}</dl></section>;
+  return <section className="rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-950"><h3 className="font-medium">已识别通知信息</h3><dl className="mt-3 grid gap-3 sm:grid-cols-2"><ResultField label="关联岗位" value={`${result.application.companyName} · ${result.application.roleTitle}`} /><ResultField label="通知类型" value={getEventTypeLabel(extraction.eventType)} /><ScheduleResult schedule={extraction.schedule} /><ResultField label="方式" value={deliveryModeLabel(extraction.deliveryMode)} /><ResultField label="后续动作（原文摘录）" value={extraction.actions?.join("；") || null} /><ResultField label="要求事项（原文摘录）" value={extraction.requirements?.join("；") || null} />{extraction.onlineUrl ? <div><dt className="text-xs font-medium text-emerald-800">链接</dt><dd className="mt-1"><a href={extraction.onlineUrl} target="_blank" rel="noreferrer" className="font-medium underline underline-offset-4">打开会议链接</a></dd></div> : null}{extraction.offlineAddress ? <ResultField label="线下地点" value={extraction.offlineAddress} /> : null}</dl></section>;
 }
 
 function ResultField({ label, value }: { label: string; value: string | null }) {

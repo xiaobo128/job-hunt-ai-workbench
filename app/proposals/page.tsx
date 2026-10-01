@@ -13,7 +13,7 @@ export default async function ProposalsPage() {
     where: { userId: user.id, status: AgentProposalStatus.PENDING, application: { jobLead: { ownerId: user.id } } },
     select: {
       id: true, type: true, payloadJson: true, sourceType: true, sourceIdentifier: true, evidenceText: true, status: true, createdAt: true,
-      application: { select: { jobLead: { select: { companyName: true, roleTitle: true } } } }
+      application: { select: { currentStage: true, jobLead: { select: { companyName: true, roleTitle: true } } } }
     },
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     take: 100
@@ -27,8 +27,8 @@ export default async function ProposalsPage() {
             <div><h2 className="text-lg font-semibold text-ink">{proposal.application.jobLead.companyName} · {proposal.application.jobLead.roleTitle}</h2><p className="mt-1 text-sm text-slate-500">{proposalTypeLabel(proposal.type)} · 创建于 {formatDate(proposal.createdAt)}</p></div>
             <span className="rounded-full border border-line px-3 py-1 text-xs font-medium text-slate-600">{statusLabel(proposal.status)}</span>
           </div>
-          <ProposalChange type={proposal.type} payloadJson={proposal.payloadJson} />
-          <NotificationOriginal evidenceText={proposal.evidenceText} />
+          <ProposalChange type={proposal.type} payloadJson={proposal.payloadJson} currentStage={proposal.application.currentStage} />
+          {proposal.type === AgentProposalType.APPLICATION_EVENT_APPEND ? <NotificationOriginal evidenceText={proposal.evidenceText} /> : <ProposalSource evidenceText={proposal.evidenceText} />}
           {proposal.status === AgentProposalStatus.PENDING ? <div className="mt-4 flex gap-3"><form action={confirmProposalAction}><input type="hidden" name="proposalId" value={proposal.id} /><button className="rounded-xl bg-ink px-4 py-2.5 text-sm font-medium text-white">确认</button></form><form action={rejectProposalAction}><input type="hidden" name="proposalId" value={proposal.id} /><button className="rounded-xl border border-line px-4 py-2.5 text-sm font-medium text-ink">拒绝</button></form></div> : null}
         </article>
       ))}
@@ -44,12 +44,12 @@ function statusLabel(status: AgentProposalStatus) {
   return status === AgentProposalStatus.PENDING ? "待确认" : status === AgentProposalStatus.CONFIRMED ? "已确认，待执行" : status === AgentProposalStatus.EXECUTED ? "已执行" : "已拒绝";
 }
 
-function ProposalChange({ type, payloadJson }: { type: AgentProposalType; payloadJson: string }) {
+function ProposalChange({ type, payloadJson, currentStage }: { type: AgentProposalType; payloadJson: string; currentStage: Parameters<typeof getStageLabel>[0] }) {
   const payload = parseObject(payloadJson);
   if (!payload) return <section className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">无法读取此项变更内容。</section>;
 
   if (type === AgentProposalType.APPLICATION_STATUS_UPDATE) {
-    return <section className="mt-4 rounded-2xl bg-slate-50 p-4"><h3 className="text-sm font-medium text-ink">即将发生的变化</h3><dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2"><ChangeField label="申请阶段" value={typeof payload.requestedStage === "string" ? getStageLabel(payload.requestedStage as never) : null} /><ChangeField label="下一步行动" value={textValue(payload.nextAction)} /></dl></section>;
+    return <section className="mt-4 rounded-2xl bg-slate-50 p-4"><h3 className="text-sm font-medium text-ink">即将发生的变化</h3><dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2"><ChangeField label="申请阶段" value={typeof payload.requestedStage === "string" ? `${getStageLabel(currentStage)} → ${getStageLabel(payload.requestedStage as Parameters<typeof getStageLabel>[0])}` : null} /><ChangeField label="下一步行动" value={textValue(payload.nextAction)} /></dl></section>;
   }
 
   const details = parseObject(textValue(payload.detailsJson));
@@ -59,8 +59,13 @@ function ProposalChange({ type, payloadJson }: { type: AgentProposalType; payloa
   const deliveryMode = textValue(extraction?.deliveryMode);
   const onlineUrl = textValue(extraction?.onlineUrl);
   const actions = textList(extraction?.actions);
+  const requirements = textList(details?.requirements);
 
-  return <section className="mt-4 rounded-2xl bg-slate-50 p-4"><h3 className="text-sm font-medium text-ink">即将发生的变化</h3><dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2"><ChangeField label="事件类型" value={eventType ? getEventTypeLabel(eventType) : null} /><ScheduleChange schedule={schedule} /><ChangeField label="方式" value={deliveryModeLabel(deliveryMode)} /><ChangeField label="下一步行动" value={actions.length ? actions.join("；") : null} />{onlineUrl ? <div><dt className="text-xs font-medium text-slate-500">链接</dt><dd className="mt-1"><a href={onlineUrl} target="_blank" rel="noreferrer" className="text-sm font-medium text-ink underline underline-offset-4">打开会议链接</a></dd></div> : null}</dl></section>;
+  return <section className="mt-4 rounded-2xl bg-slate-50 p-4"><h3 className="text-sm font-medium text-ink">即将发生的变化</h3><dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2"><ChangeField label="事件类型" value={eventType ? getEventTypeLabel(eventType) : null} /><ScheduleChange schedule={schedule} /><ChangeField label="方式" value={deliveryModeLabel(deliveryMode)} /><ChangeField label="后续动作（原文摘录）" value={actions.length ? actions.join("；") : null} /><ChangeField label="要求事项（原文摘录）" value={requirements.length ? requirements.join("；") : null} />{onlineUrl ? <div><dt className="text-xs font-medium text-slate-500">链接</dt><dd className="mt-1"><a href={onlineUrl} target="_blank" rel="noreferrer" className="text-sm font-medium text-ink underline underline-offset-4">打开会议链接</a></dd></div> : null}</dl></section>;
+}
+
+function ProposalSource({ evidenceText }: { evidenceText: string }) {
+  return <details className="mt-3 rounded-2xl border border-line p-4"><summary className="cursor-pointer text-sm font-medium text-ink">查看建议来源</summary><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">{evidenceText}</p></details>;
 }
 
 function ChangeField({ label, value }: { label: string; value: string | null }) {

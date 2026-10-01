@@ -52,8 +52,17 @@ export default async function NotificationTimelinePage({ params }: { params: Pro
               <div className="border-t border-line px-4 pb-4 pt-4">
                 <div className="flex items-center justify-between gap-3"><OriginalEmailDialog title={event.title} recordedAt={formatDate(event.receivedAt || event.createdAt)} content={details.content} /></div>
                 <section className="mt-3 rounded-3xl border border-line bg-slate-50 p-4">
-                  <h4 className="text-sm font-medium text-ink">通知摘要</h4>
-                  <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2"><div><dt className="text-slate-500">通知类型</dt><dd className="mt-1 text-ink">{getEventTypeLabel(event.eventType)}</dd></div><div><dt className="text-slate-500">状态</dt><dd className="mt-1 text-ink">{statusLabel(event.status)}</dd></div><div className="sm:col-span-2"><dt className="text-slate-500">时间安排</dt><dd className="mt-1"><EventTimeSummary {...event} /></dd></div><div className="sm:col-span-2"><dt className="text-slate-500">要求事项 / 后续动作</dt><dd className="mt-1 whitespace-pre-wrap text-ink">{details.requirements.length ? details.requirements.map((requirement) => `• ${requirement}`).join("\n") : "暂无"}</dd></div></dl>
+                  <h4 className="text-sm font-medium text-ink">结构化通知信息</h4>
+                  <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+                    <div><dt className="text-slate-500">通知类型</dt><dd className="mt-1 text-ink">{getEventTypeLabel(event.eventType)}</dd></div>
+                    <div><dt className="text-slate-500">状态</dt><dd className="mt-1 text-ink">{statusLabel(event.status)}</dd></div>
+                    {details.receivedAtRaw ? <div><dt className="text-slate-500">接收时间</dt><dd className="mt-1 text-ink">{formatReceivedAtRaw(details.receivedAtRaw)}</dd></div> : null}
+                    <div className="sm:col-span-2"><dt className="text-slate-500">时间安排</dt><dd className="mt-1"><EventTimeSummary {...event} /></dd>{details.scheduleRawText ? <p className="mt-1 text-xs text-slate-500">原文：{details.scheduleRawText}</p> : null}</div>
+                    <div><dt className="text-slate-500">方式</dt><dd className="mt-1 text-ink">{deliveryModeLabel(details.deliveryMode)}</dd>{details.deliveryModeRawText ? <p className="mt-1 text-xs text-slate-500">原文：{details.deliveryModeRawText}</p> : null}</div>
+                    <div><dt className="text-slate-500">链接 / 地点</dt><dd className="mt-1 text-ink">{details.onlineUrl ? <a href={details.onlineUrl} target="_blank" rel="noreferrer" className="font-medium underline underline-offset-4">打开通知链接</a> : details.offlineAddress || "暂无"}</dd></div>
+                    <ExcerptList label="要求事项（原文摘录）" excerpts={details.requirements} />
+                    <ExcerptList label="后续动作（原文摘录）" excerpts={details.actions} />
+                  </dl>
                 </section>
               </div>
             </details>;
@@ -66,14 +75,55 @@ export default async function NotificationTimelinePage({ params }: { params: Pro
 
 function readEventDetails(detailsJson: string) {
   try {
-    const parsed = JSON.parse(detailsJson) as { content?: unknown; requirements?: unknown };
+    const parsed = JSON.parse(detailsJson) as { content?: unknown; receivedAtRaw?: unknown; requirements?: unknown; actions?: unknown; extraction?: unknown };
+    const extraction = objectValue(parsed.extraction);
+    const schedule = objectValue(extraction?.schedule);
+    const actions = textList(parsed.actions);
+    const requirements = textList(parsed.requirements);
     return {
       content: typeof parsed.content === "string" ? parsed.content : "",
-      requirements: Array.isArray(parsed.requirements) ? parsed.requirements.filter((item): item is string => typeof item === "string") : [] as string[]
+      receivedAtRaw: textValue(parsed.receivedAtRaw),
+      requirements: requirements.length ? requirements : textList(extraction?.requirements),
+      actions: actions.length ? actions : textList(extraction?.actions),
+      scheduleRawText: textValue(schedule?.rawText),
+      deliveryMode: textValue(extraction?.deliveryMode),
+      deliveryModeRawText: textValue(extraction?.deliveryModeRawText),
+      onlineUrl: safeHttpUrl(extraction?.onlineUrl),
+      offlineAddress: textValue(extraction?.offlineAddress)
     };
   } catch {
-    return { content: "", requirements: [] as string[] };
+    return { content: "", receivedAtRaw: null, requirements: [] as string[], actions: [] as string[], scheduleRawText: null, deliveryMode: null, deliveryModeRawText: null, onlineUrl: null, offlineAddress: null };
   }
+}
+
+function ExcerptList({ label, excerpts }: { label: string; excerpts: string[] }) {
+  return <div className="sm:col-span-2"><dt className="text-slate-500">{label}</dt><dd className="mt-1 whitespace-pre-wrap text-ink">{excerpts.length ? excerpts.map((excerpt) => `• ${excerpt}`).join("\n") : "暂无"}</dd></div>;
+}
+
+function objectValue(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+
+function textValue(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function textList(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string" && Boolean(item.trim())) : [];
+}
+
+function safeHttpUrl(value: unknown) {
+  const url = textValue(value);
+  return url && /^https?:\/\//i.test(url) ? url : null;
+}
+
+function deliveryModeLabel(value: string | null) {
+  return value === "ONLINE" ? "线上" : value === "OFFLINE" ? "线下" : value === "HYBRID" ? "线上和线下" : "暂无";
+}
+
+function formatReceivedAtRaw(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+  return match ? `${match[1]}年${match[2]}月${match[3]}日 ${match[4]}:${match[5]}` : value;
 }
 
 function dateToIso(value: Date | null) {

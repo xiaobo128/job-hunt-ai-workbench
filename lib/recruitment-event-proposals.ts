@@ -1,9 +1,6 @@
 import { AgentProposalType, EventType } from "@prisma/client";
-import { z } from "zod";
 import type { RecruitmentEventExtraction } from "@/lib/ai";
 import { createAgentProposal } from "@/lib/domain/agent-proposals";
-
-const isoDateTimeWithOffset = z.string().datetime({ offset: true });
 
 export type RecruitmentEventApplication = {
   applicationId: string;
@@ -53,17 +50,19 @@ export async function createRecruitmentEventProposal(input: {
         eventTime: schedule.eventTime,
         windowStartAt: schedule.windowStartAt,
         deadlineAt: schedule.deadlineAt,
-        receivedAt: confirmedIsoDateTime(input.receivedAt),
+        receivedAt: null,
         detailsJson: JSON.stringify({
           content: input.content,
-          summary: input.extraction.summary,
-          requirements: input.extraction.requirements,
+          receivedAtRaw: input.receivedAt,
+          requirements: input.extraction.requirements ?? [],
+          actions: input.extraction.actions ?? [],
           extraction: {
             companyHint: input.extraction.companyHint,
             roleHint: input.extraction.roleHint,
             intent: input.extraction.intent,
             schedule: input.extraction.schedule,
             deliveryMode: input.extraction.deliveryMode,
+            deliveryModeRawText: input.extraction.deliveryModeRawText,
             onlineUrl: input.extraction.onlineUrl,
             offlineAddress: input.extraction.offlineAddress,
             actions: input.extraction.actions
@@ -91,13 +90,8 @@ function toExistingEventType(value: RecruitmentEventExtraction["eventType"]): Ev
 }
 
 function proposalTitle(subject: string, extraction: RecruitmentEventExtraction) {
-  const title = subject.trim() || extraction.summary || `招聘通知：${extraction.eventType}`;
+  const title = subject.trim() || `招聘通知：${extraction.eventType}`;
   return title.slice(0, 500);
-}
-
-function confirmedIsoDateTime(value: string | null) {
-  if (!value || !isoDateTimeWithOffset.safeParse(value).success) return null;
-  return value;
 }
 
 function eventScheduleFields(schedule: RecruitmentEventExtraction["schedule"]) {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { AgentProposalStatus, AgentProposalType } from "@prisma/client";
 import { AgentProposalError, applicationEventProposalPayloadSchema, applicationStatusProposalPayloadSchema, assertProposalExecutable, executeProposalMutation } from "./agent-proposals";
+import { proposeApplicationStatusUpdate } from "./application-status-proposals";
 
 const ownedConfirmed = {
   userId: "user-a",
@@ -22,6 +23,24 @@ function errorCode(run: () => unknown) {
 
 test("unconfirmed proposals cannot execute", () => {
   assert.equal(errorCode(() => assertProposalExecutable({ proposal: { ...ownedConfirmed, status: AgentProposalStatus.PENDING }, userId: "user-a" })), "NOT_CONFIRMED");
+});
+
+test("agent creates an application status proposal without executing it", async () => {
+  const created: unknown[] = [];
+  const result = await proposeApplicationStatusUpdate({
+    userId: "user-a",
+    input: { applicationId: "application-1", requestedStage: "FIRST_INTERVIEW", nextAction: "准备一面" },
+    dependencies: {
+      findOwnedApplication: async () => ({ id: "application-1", currentStage: "APPLIED" }),
+      createProposal: async (input) => {
+        created.push(input);
+        return { id: "proposal-1", status: "PENDING" };
+      }
+    }
+  });
+
+  assert.deepEqual(result, { proposalId: "proposal-1", status: "PENDING", applicationId: "application-1", requestedStage: "FIRST_INTERVIEW" });
+  assert.equal((created[0] as { input: { type: string } }).input.type, "APPLICATION_STATUS_UPDATE");
 });
 
 test("confirmed proposals are executable exactly for their owner and application owner", () => {

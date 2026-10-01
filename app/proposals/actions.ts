@@ -3,6 +3,7 @@
 import { AgentProposalType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { prisma } from "@/lib/db";
 import { confirmAgentProposal, executeConfirmedAgentProposal, rejectAgentProposal } from "@/lib/domain/agent-proposals";
 import { requireSessionUser } from "@/lib/session";
 
@@ -14,7 +15,23 @@ function proposalId(formData: FormData) {
 
 export async function confirmProposalAction(formData: FormData) {
   const user = await requireSessionUser();
-  await confirmAgentProposal({ userId: user.id, proposalId: proposalId(formData) });
+  const id = proposalId(formData);
+  const proposal = await prisma.agentProposal.findFirst({
+    where: { id, userId: user.id, application: { jobLead: { ownerId: user.id } } },
+    select: { type: true }
+  });
+  if (!proposal) throw new Error("Invalid proposal");
+
+  await confirmAgentProposal({ userId: user.id, proposalId: id });
+  if (proposal.type === AgentProposalType.APPLICATION_STATUS_UPDATE) {
+    await executeConfirmedAgentProposal({
+      userId: user.id,
+      proposalId: id,
+      expectedType: AgentProposalType.APPLICATION_STATUS_UPDATE
+    });
+    revalidatePath("/");
+    revalidatePath("/jobs");
+  }
   revalidatePath("/proposals");
 }
 
