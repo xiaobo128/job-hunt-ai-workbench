@@ -340,7 +340,7 @@ function sortRecentTaskItems(items: DashboardWorkflowItem[]) {
 }
 
 function formatDashboardDateTime(value: Date) {
-  return `${value.getMonth() + 1}/${value.getDate()} ${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
+  return `${value.getUTCMonth() + 1}/${value.getUTCDate()} ${String(value.getUTCHours()).padStart(2, "0")}:${String(value.getUTCMinutes()).padStart(2, "0")}`;
 }
 
 export async function getJobs() {

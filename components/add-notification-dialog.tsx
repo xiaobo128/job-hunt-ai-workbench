@@ -5,6 +5,7 @@ import { createPortal, useFormStatus } from "react-dom";
 import { confirmRecruitmentEventProposalAction } from "@/app/proposals/actions";
 import { processRecruitmentEvent, type RecruitmentEventAgentState } from "@/app/recruitment-event-agent/actions";
 import { getEventTypeLabel } from "@/lib/event-types";
+import { formatWallClockDisplay } from "@/lib/wall-clock";
 
 const initialState: RecruitmentEventAgentState = { status: "idle" };
 
@@ -96,8 +97,8 @@ function deliveryModeLabel(value: string) {
 
 function formatNotificationTime(value: string | null) {
   if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(date);
+  const formatted = formatWallClockDisplay(value);
+  return formatted === "未设置" ? value : formatted;
 }
 
 function SubmitButton({ label, secondary = false, disabled = false }: { label: string; secondary?: boolean; disabled?: boolean }) {

@@ -7,6 +7,7 @@ import type { ApplicationStage } from "@prisma/client";
 import { updateApplicationResume, updateApplicationStage, updateJobsTableField } from "@/app/actions";
 import { Badge } from "@/components/cards";
 import { getApplicationStageBadgeClass, normalizeApplicationStage, stageOptions } from "@/lib/constants";
+import { formatWallClockDate, parseWallClockDate } from "@/lib/wall-clock";
 
 type JobItem = {
   id: string; companyName: string; roleTitle: string; city: string | null; industry: string | null; seniority: string | null;
@@ -89,7 +90,7 @@ function ApplicationTrackerRow({ job, rowNumber, resumes, noteColumnWidth, onUpd
     onError(null);
     onUpdate((items) => items.map((item) => {
       if (item.id !== job.id) return item;
-      if (field === "appliedAt" || field === "note") return item.application ? { ...item, application: { ...item.application, [field]: field === "appliedAt" ? (value ? new Date(`${value}T00:00:00`) : null) : (value || null) } } : item;
+      if (field === "appliedAt" || field === "note") return item.application ? { ...item, application: { ...item.application, [field]: field === "appliedAt" ? (value ? parseWallClockDate(value) : null) : (value || null) } } : item;
       return { ...item, [field]: value || null };
     }));
     try {
@@ -140,6 +141,6 @@ function JobCard({ job, isDragging, onDragStart, onDragEnd }: { job: JobItem; is
 function EmptyState() { return <div className="rounded-3xl border border-dashed border-line bg-white p-6 text-center text-sm text-slate-500">当前筛选条件下还没有岗位记录。</div>; }
 function options(values: string[]) { return [...new Set(values.filter(Boolean))].sort((a, b) => a.localeCompare(b)); }
 function setParam(params: URLSearchParams, key: string, value: string) { if (value) params.set(key, value); else params.delete(key); }
-function monthDay(date: Date) { return new Intl.DateTimeFormat("zh-CN", { month: "2-digit", day: "2-digit" }).format(date); }
-function fullDate(date: Date) { return new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" }).format(date); }
-function dateInputValue(date: Date) { const year = date.getFullYear(); const month = String(date.getMonth() + 1).padStart(2, "0"); const day = String(date.getDate()).padStart(2, "0"); return `${year}-${month}-${day}`; }
+function monthDay(date: Date) { return formatWallClockDate(date).slice(5).replace("-", "/"); }
+function fullDate(date: Date) { return formatWallClockDate(date); }
+function dateInputValue(date: Date) { return formatWallClockDate(date); }

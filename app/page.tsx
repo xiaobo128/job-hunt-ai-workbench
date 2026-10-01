@@ -4,6 +4,7 @@ import { DashboardActionItems } from "@/components/dashboard-action-items";
 import { DashboardCalendar, type CalendarEvent } from "@/components/dashboard-calendar";
 import { Panel } from "@/components/cards";
 import { getDashboardData } from "@/lib/queries";
+import { formatWallClockDateTime } from "@/lib/wall-clock";
 
 export default async function DashboardPage() {
   const { todayActionItems, calendarEvents, progress } =
@@ -14,10 +15,10 @@ export default async function DashboardPage() {
     applicationId: event.applicationId,
     eventType: event.eventType,
     status: event.status,
-    eventTime: event.eventTime?.toISOString() ?? null,
-    windowStartAt: event.windowStartAt?.toISOString() ?? null,
-    deadlineAt: event.deadlineAt?.toISOString() ?? null,
-    receivedAt: event.receivedAt?.toISOString() ?? null,
+    eventTime: formatWallClockDateTime(event.eventTime),
+    windowStartAt: formatWallClockDateTime(event.windowStartAt),
+    deadlineAt: formatWallClockDateTime(event.deadlineAt),
+    receivedAt: formatWallClockDateTime(event.receivedAt),
     relativeValidityMinutes: event.relativeValidityMinutes,
     companyName: event.application.jobLead.companyName,
     roleTitle: event.application.jobLead.roleTitle

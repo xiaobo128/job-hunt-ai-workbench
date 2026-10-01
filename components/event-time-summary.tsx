@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { resolveEventTime } from "@/lib/event-time";
-import { formatDate } from "@/lib/format";
+import { formatWallClockDateTimeInput, formatWallClockDisplay } from "@/lib/wall-clock";
 
 type EventTimeValues = {
   eventTime: Date | null;
@@ -29,9 +29,9 @@ export function EventTimeSummary(values: EventTimeValues) {
   if (mode === "RELATIVE") {
     return (
       <div className="space-y-1 text-xs text-slate-500">
-        <div>收到时间：{formatDate(values.receivedAt)}</div>
-        <div>链接有效至：{formatDate(resolved.validUntil)}</div>
-        {values.deadlineAt ? <div>最终 ddl：{formatDate(values.deadlineAt)}</div> : null}
+        <div>收到时间：{formatWallClockDisplay(values.receivedAt)}</div>
+        <div>链接有效至：{formatWallClockDisplay(resolved.validUntil)}</div>
+        {values.deadlineAt ? <div>最终 ddl：{formatWallClockDisplay(values.deadlineAt)}</div> : null}
       </div>
     );
   }
@@ -39,13 +39,13 @@ export function EventTimeSummary(values: EventTimeValues) {
   if (mode === "WINDOW") {
     return (
       <div className="space-y-1 text-xs text-slate-500">
-        <div>开放时间：{formatDate(resolved.windowStartAt)}</div>
-        <div>截止时间：{formatDate(resolved.deadlineAt)}</div>
+        <div>开放时间：{formatWallClockDisplay(resolved.windowStartAt)}</div>
+        <div>截止时间：{formatWallClockDisplay(resolved.deadlineAt)}</div>
       </div>
     );
   }
 
-  return values.eventTime ? <div className="text-xs text-slate-500">安排时间：{formatDate(values.eventTime)}</div> : null;
+  return values.eventTime ? <div className="text-xs text-slate-500">安排时间：{formatWallClockDisplay(values.eventTime)}</div> : null;
 }
 
 export function EventTimeFields({
@@ -138,9 +138,5 @@ function getRelativeDefaults(minutes: number | null) {
 }
 
 function toDateTimeLocalValue(value: Date | string | null) {
-  if (!value) return "";
-  const date = typeof value === "string" ? new Date(value) : value;
-  if (Number.isNaN(date.getTime())) return "";
-  const offsetMs = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+  return formatWallClockDateTimeInput(value);
 }

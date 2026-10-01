@@ -6,6 +6,7 @@ import { ApplicationStatusProposalError, proposeApplicationStatusUpdate, type Ap
 import { getCalendarEventDates, getDashboardEventDueAt, resolveEventTime } from "@/lib/event-time";
 import { ConfirmedResumeDocumentError, loadConfirmedResumeDocument } from "@/lib/resume-parsing/confirmed";
 import { uniqueCriticalEvents } from "@/lib/workflow";
+import { formatWallClockDateTime } from "@/lib/wall-clock";
 
 const emptyInput = fromJsonSchema<Record<string, never>>({ type: "object", additionalProperties: false });
 const applicationIdInput = fromJsonSchema<{ applicationId: string }>({
@@ -55,7 +56,7 @@ const proposeApplicationStatusUpdateInput = fromJsonSchema<ApplicationStatusProp
 type JsonObject = Record<string, unknown>;
 
 function date(value: Date | null) {
-  return value?.toISOString() ?? null;
+  return formatWallClockDateTime(value);
 }
 
 function safeDetails(detailsJson: string): unknown {
@@ -251,7 +252,7 @@ export const mcpHandler = createMcpHandler(({ authInfo }) => {
           const dueAt = getDashboardEventDueAt(event);
           if (!dueAt || dueAt < today || dueAt >= windowEnd) return [];
           const resolved = resolveEventTime(event);
-          return [{ id: event.id, applicationId: event.applicationId, jobLeadId: event.application.jobLead.id, companyName: event.application.jobLead.companyName, roleTitle: event.application.jobLead.roleTitle, currentStage: event.application.currentStage, title: event.title, dueAt: dueAt.toISOString(), effectiveDueReason: resolved.effectiveDueReason, deadlineAt: date(event.deadlineAt), validUntil: date(resolved.validUntil) }];
+          return [{ id: event.id, applicationId: event.applicationId, jobLeadId: event.application.jobLead.id, companyName: event.application.jobLead.companyName, roleTitle: event.application.jobLead.roleTitle, currentStage: event.application.currentStage, title: event.title, dueAt: formatWallClockDateTime(dueAt)!, effectiveDueReason: resolved.effectiveDueReason, deadlineAt: date(event.deadlineAt), validUntil: date(resolved.validUntil) }];
         }).sort((left, right) => left.dueAt.localeCompare(right.dueAt) || left.id.localeCompare(right.id));
         return result({ startDate: today.toISOString().slice(0, 10), days, deadlines });
       } catch {

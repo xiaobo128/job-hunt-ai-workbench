@@ -5,6 +5,7 @@ import { parseAgentJson, requireAgentAuth, serverError } from "@/lib/agent-api";
 import { completeAgentRunLog, createAgentRunLog } from "@/lib/agent-auth";
 import { agentEventCreateSchema } from "@/lib/agent-schemas";
 import { appendApplicationEvent } from "@/lib/domain/applications";
+import { parseWallClockDateTime } from "@/lib/wall-clock";
 
 export async function POST(request: Request) {
   const auth = await requireAgentAuth();
@@ -49,7 +50,7 @@ export async function POST(request: Request) {
       aiProvider: body.provider || "external-agent",
       aiNote: body.aiNote || "Written through the external agent API.",
       eventType: body.eventType,
-      eventTime: body.eventTime ? new Date(body.eventTime) : null,
+      eventTime: body.eventTime ? parseWallClockDateTime(body.eventTime) : null,
       title: body.title,
       artifactName: body.artifactName || null,
       artifactUrl: body.artifactUrl || null,

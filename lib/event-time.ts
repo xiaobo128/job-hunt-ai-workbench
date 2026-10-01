@@ -90,16 +90,16 @@ export function getCalendarEventDates(values: EventTimeInput) {
 
 function formatRange(start: Date, end: Date) {
   const startText = formatDateTime(start);
-  const sameDay = start.getFullYear() === end.getFullYear() && start.getMonth() === end.getMonth() && start.getDate() === end.getDate();
+  const sameDay = start.getUTCFullYear() === end.getUTCFullYear() && start.getUTCMonth() === end.getUTCMonth() && start.getUTCDate() === end.getUTCDate();
   return `${startText}–${sameDay ? formatTime(end) : formatDateTime(end)}`;
 }
 
 function formatDateTime(value: Date) {
-  return `${value.getMonth() + 1}/${value.getDate()} ${formatTime(value)}`;
+  return `${value.getUTCMonth() + 1}/${value.getUTCDate()} ${formatTime(value)}`;
 }
 
 function formatTime(value: Date) {
-  return `${String(value.getHours()).padStart(2, "0")}:${String(value.getMinutes()).padStart(2, "0")}`;
+  return `${String(value.getUTCHours()).padStart(2, "0")}:${String(value.getUTCMinutes()).padStart(2, "0")}`;
 }
 
 function uniqueDates(values: Date[]) {

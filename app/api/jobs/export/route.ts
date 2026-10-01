@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { getStageDisplayLabel } from "@/lib/constants";
 import { getCurrentJobItem } from "@/lib/job-current-item";
 import { requireSessionUser } from "@/lib/session";
+import { formatWallClockDateTime } from "@/lib/wall-clock";
 
 export const runtime = "nodejs";
 
@@ -43,9 +44,9 @@ export async function GET() {
       application.jobLead.sourceName ?? "",
       getStageDisplayLabel(application.currentStage),
       getCurrentJobItem(application).text,
-      formatDateTime(application.appliedAt),
+      formatBusinessDateTime(application.appliedAt),
       latestEvent?.title.trim() ?? "",
-      formatDateTime(latestEvent?.eventTime ?? latestEvent?.createdAt ?? null),
+      latestEvent?.eventTime ? formatBusinessDateTime(latestEvent.eventTime) : formatDateTime(latestEvent?.createdAt ?? null),
       application._count.events,
       application.note?.trim() ?? ""
     ]);
@@ -64,7 +65,11 @@ export async function GET() {
 
 function formatDateTime(value: Date | null) {
   if (!value) return "";
-  return `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())} ${pad(value.getHours())}:${pad(value.getMinutes())}`;
+  return `${value.getUTCFullYear()}-${pad(value.getUTCMonth() + 1)}-${pad(value.getUTCDate())} ${pad(value.getUTCHours())}:${pad(value.getUTCMinutes())}`;
+}
+
+function formatBusinessDateTime(value: Date | null) {
+  return formatWallClockDateTime(value)?.replace("T", " ").slice(0, 16) ?? "";
 }
 
 function formatFileDate(value: Date) {

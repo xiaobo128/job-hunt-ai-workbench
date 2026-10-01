@@ -2,9 +2,10 @@ import { ApplicationStage, AgentProposalStatus, AgentProposalType, EventType, Pr
 import { z } from "zod";
 import { prisma } from "../db";
 import { appendApplicationEvent, ApplicationNotFoundError, updateApplicationStatus } from "./applications";
+import { parseWallClockDateTime } from "../wall-clock";
 
 const optionalText = z.string().trim().max(2_000).nullable().optional();
-const optionalDate = z.string().datetime({ offset: true }).nullable().optional();
+const optionalDate = z.string().refine((value) => parseWallClockDateTime(value) !== null, "Invalid wall-clock date-time").nullable().optional();
 
 export const applicationStatusProposalPayloadSchema = z.object({
   requestedStage: z.nativeEnum(ApplicationStage),
@@ -131,7 +132,7 @@ export async function rejectAgentProposal({ userId, proposalId }: { userId: stri
 function toDate(value: string | null | undefined) {
   if (value === undefined) return undefined;
   if (value === null) return null;
-  return new Date(value);
+  return parseWallClockDateTime(value);
 }
 
 type ExecutableProposal = {

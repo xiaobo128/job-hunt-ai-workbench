@@ -153,7 +153,7 @@ export async function GET() {
             applicationId: { type: "string" },
             eventType: { type: "string", enum: Object.values(EventType) },
             title: { type: "string" },
-            eventTime: { type: "string", format: "date-time" },
+            eventTime: { type: "string", description: "Wall-clock date-time. Calendar fields are stored as supplied; timezone suffixes are not converted." },
             content: { type: "string" },
             provider: { type: "string" },
             aiNote: { type: "string" },

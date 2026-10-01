@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { formatDate } from "@/lib/format";
 import { requireSessionUser } from "@/lib/session";
 import { getEventTypeLabel } from "@/lib/event-types";
+import { formatWallClockDateTime, formatWallClockDisplay } from "@/lib/wall-clock";
 
 export default async function NotificationTimelinePage({ params }: { params: Promise<{ applicationId: string }> }) {
   const user = await requireSessionUser();
@@ -50,7 +51,7 @@ export default async function NotificationTimelinePage({ params }: { params: Pro
             return <details key={event.id} open className={`group rounded-3xl border border-line bg-white shadow-card ${event.status === "COMPLETED" ? "opacity-70" : event.status === "IGNORED" ? "opacity-50" : ""}`}>
               <summary className="list-none cursor-pointer p-4"><div className="flex items-start justify-between gap-4"><div className="min-w-0"><div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-slate-500"><span>{getEventTypeLabel(event.eventType)}</span><span>记录于 {formatDate(event.createdAt)}</span></div><div className="mt-1"><EventTimeSummary {...event} /></div><h3 className="mt-1 truncate text-lg font-semibold text-ink">{event.title}</h3><p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{notificationSummary(event.title, details.content)}</p></div><div className="shrink-0"><NotificationEventActions status={event.status} applications={applications} event={{ id: event.id, applicationId: event.applicationId, eventType: event.eventType, status: event.status, title: event.title, eventTime: dateToIso(event.eventTime), windowStartAt: dateToIso(event.windowStartAt), deadlineAt: dateToIso(event.deadlineAt), receivedAt: dateToIso(event.receivedAt), relativeValidityMinutes: event.relativeValidityMinutes, content: details.content, requirements: details.requirements, artifactName: event.artifactName, artifactUrl: event.artifactUrl }} /></div></div></summary>
               <div className="border-t border-line px-4 pb-4 pt-4">
-                <div className="flex items-center justify-between gap-3"><OriginalEmailDialog title={event.title} recordedAt={formatDate(event.receivedAt || event.createdAt)} content={details.content} /></div>
+                <div className="flex items-center justify-between gap-3"><OriginalEmailDialog title={event.title} recordedAt={event.receivedAt ? formatWallClockDisplay(event.receivedAt) : formatDate(event.createdAt)} content={details.content} /></div>
                 <section className="mt-3 rounded-3xl border border-line bg-slate-50 p-4">
                   <h4 className="text-sm font-medium text-ink">结构化通知信息</h4>
                   <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
@@ -127,7 +128,7 @@ function formatReceivedAtRaw(value: string) {
 }
 
 function dateToIso(value: Date | null) {
-  return value?.toISOString() ?? null;
+  return formatWallClockDateTime(value);
 }
 
 function notificationSummary(title: string, content: string) {

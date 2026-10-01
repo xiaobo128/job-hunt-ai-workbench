@@ -1,5 +1,6 @@
 import { ApplicationStage, EventType, ResumeVariantSourceType, SourceType } from "@prisma/client";
 import { z } from "zod";
+import { parseWallClockDateTime } from "@/lib/wall-clock";
 
 const trimmedString = z.string().trim();
 const optionalTrimmedString = z
@@ -56,7 +57,7 @@ export const agentEventCreateSchema = z.object({
   applicationId: trimmedString.min(1),
   eventType: z.nativeEnum(EventType),
   title: trimmedString.min(1),
-  eventTime: optionalTrimmedString,
+  eventTime: optionalTrimmedString.refine((value) => value === undefined || parseWallClockDateTime(value) !== null, "Invalid wall-clock date-time"),
   content: optionalTrimmedString,
   provider: optionalTrimmedString,
   aiNote: optionalTrimmedString,

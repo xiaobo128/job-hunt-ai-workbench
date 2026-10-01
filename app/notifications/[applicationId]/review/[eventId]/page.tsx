@@ -3,6 +3,7 @@ import { PageShell } from "@/components/app-shell";
 import { NotificationReviewForm } from "@/components/notification-review-form";
 import { prisma } from "@/lib/db";
 import { requireSessionUser } from "@/lib/session";
+import { formatWallClockDateTime } from "@/lib/wall-clock";
 
 export default async function NotificationReviewPage({ params }: { params: Promise<{ applicationId: string; eventId: string }> }) {
   const user = await requireSessionUser();
@@ -25,8 +26,8 @@ export default async function NotificationReviewPage({ params }: { params: Promi
     <NotificationReviewForm
       event={{
         id: event.id, applicationId: event.applicationId, eventType: event.eventType, status: event.status, title: event.title,
-        eventTime: event.eventTime?.toISOString() ?? null, windowStartAt: event.windowStartAt?.toISOString() ?? null,
-        deadlineAt: event.deadlineAt?.toISOString() ?? null, receivedAt: event.receivedAt?.toISOString() ?? null,
+        eventTime: formatWallClockDateTime(event.eventTime), windowStartAt: formatWallClockDateTime(event.windowStartAt),
+        deadlineAt: formatWallClockDateTime(event.deadlineAt), receivedAt: formatWallClockDateTime(event.receivedAt),
         relativeValidityMinutes: event.relativeValidityMinutes, detailsJson: event.detailsJson
       }}
       applications={applications.map((application) => ({ id: application.id, label: `${application.jobLead.companyName} | ${application.jobLead.roleTitle}` }))}

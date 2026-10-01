@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { getEventTypeLabel } from "@/lib/event-types";
 import { formatDate } from "@/lib/format";
 import { requireSessionUser } from "@/lib/session";
+import { formatWallClockDisplay } from "@/lib/wall-clock";
 import { confirmProposalAction, rejectProposalAction } from "./actions";
 
 export default async function ProposalsPage() {
@@ -76,9 +77,9 @@ function ScheduleChange({ schedule }: { schedule: Record<string, unknown> | null
   const type = textValue(schedule?.type);
   const startAt = textValue(schedule?.startAt);
   const endAt = textValue(schedule?.endAt);
-  if (type === "FIXED_TIME") return <ChangeField label="固定时间" value={startAt ? formatDate(startAt) : null} />;
-  if (type === "TIME_WINDOW") return <ChangeField label="有效时间" value={`${startAt ? formatDate(startAt) : "未提供"} 至 ${endAt ? formatDate(endAt) : "未提供"}`} />;
-  if (type === "DEADLINE") return <ChangeField label="截止时间" value={endAt ? formatDate(endAt) : null} />;
+  if (type === "FIXED_TIME") return <ChangeField label="固定时间" value={startAt ? formatWallClockDisplay(startAt) : null} />;
+  if (type === "TIME_WINDOW") return <ChangeField label="有效时间" value={`${startAt ? formatWallClockDisplay(startAt) : "未提供"} 至 ${endAt ? formatWallClockDisplay(endAt) : "未提供"}`} />;
+  if (type === "DEADLINE") return <ChangeField label="截止时间" value={endAt ? formatWallClockDisplay(endAt) : null} />;
   return null;
 }
 

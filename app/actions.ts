@@ -47,6 +47,7 @@ import { saveUpload } from "@/lib/storage";
 import { generateApiTokenValue, sha256 } from "@/lib/agent-auth";
 import { triggerOutboundWebhook } from "@/lib/agent-webhooks";
 import { appendApplicationEvent, updateApplicationStatus } from "@/lib/domain/applications";
+import { parseWallClockDate, parseWallClockDateTime } from "@/lib/wall-clock";
 
 const EXCEL_IMPORT_MAX_BYTES = 5 * 1024 * 1024;
 const excelHeaderAliases: Record<string, string[]> = {
@@ -119,11 +120,12 @@ function parseExcelDate(value: string) {
   }
   const monthDay = text.match(/^(\d{1,2})[-.]?(\d{1,2})$/);
   if (monthDay) {
-    const date = new Date(new Date().getFullYear(), Number(monthDay[1]) - 1, Number(monthDay[2]));
-    return Number.isNaN(date.getTime()) ? null : date;
+    const date = parseWallClockDate(`${new Date().getFullYear()}-${String(monthDay[1]).padStart(2, "0")}-${String(monthDay[2]).padStart(2, "0")}`);
+    return date;
   }
-  const direct = new Date(text.replace(/年|\//g, "-").replace(/月/g, "-").replace(/日/g, ""));
-  if (!Number.isNaN(direct.getTime()) && /\d/.test(text)) return direct;
+  const normalized = text.replace(/年|\//g, "-").replace(/月/g, "-").replace(/日/g, "");
+  const direct = parseWallClockDate(normalized);
+  if (direct && /\d/.test(text)) return direct;
   return null;
 }
 
@@ -490,8 +492,8 @@ export async function updateJobsTableField(input: { jobLeadId: string; field: Jo
   } else {
     if (!jobLead.application) throw new Error("Application not found");
     if (field === "appliedAt") {
-      const date = value ? new Date(`${value}T00:00:00`) : null;
-      if (value && Number.isNaN(date?.getTime())) throw new Error("请输入有效日期");
+      const date = value ? parseWallClockDate(value) : null;
+      if (value && !date) throw new Error("请输入有效日期");
       await prisma.application.update({ where: { id: jobLead.application.id }, data: { appliedAt: date } });
     } else {
       await prisma.application.update({ where: { id: jobLead.application.id }, data: { note: value || null } });
@@ -2370,8 +2372,8 @@ export async function createNotificationEvent(
       return { value: null as Date | null };
     }
 
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? { error: `无效的 ${field} 时间。` } : { value: date };
+    const date = parseWallClockDateTime(value);
+    return date ? { value: date } : { error: `无效的 ${field} 时间。` };
   };
   const eventTime = parseDateField("eventTime");
   const windowStartAt = parseDateField("windowStartAt");
@@ -2483,8 +2485,8 @@ export async function updateNotificationEvent(
       return { value: null as Date | null };
     }
 
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? { error: `无效的 ${field} 时间。` } : { value: date };
+    const date = parseWallClockDateTime(value);
+    return date ? { value: date } : { error: `无效的 ${field} 时间。` };
   };
   const eventTime = parseDateField("eventTime");
   const windowStartAt = parseDateField("windowStartAt");

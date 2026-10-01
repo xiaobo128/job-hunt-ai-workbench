@@ -1,5 +1,6 @@
 import { ResumeDocumentSchema } from "@/lib/resume-parsing/core";
 import type { AgentHandoffInput, CandidateFacts } from "@/lib/agent-handoff-client";
+import { formatWallClockDateTime } from "@/lib/wall-clock";
 
 type ResumeFactSource = {
   resumeId: string;
@@ -141,8 +142,8 @@ export function createAgentHandoffInput(args: {
       skills: parseList(args.job.skills), responsibilities: parseList(args.job.responsibilities), requirements: parseList(args.job.requirements), sourceUrl: text(args.job.sourceUrl)
     },
     application: {
-      id: args.application.id, stage: text(args.application.currentStage), appliedAt: args.application.appliedAt?.toISOString() ?? null,
-      submissionChannel: text(args.application.submissionChannel), nextAction: text(args.application.nextAction), nextActionDueAt: args.application.nextActionDueAt?.toISOString() ?? null, note: text(args.application.note),
+      id: args.application.id, stage: text(args.application.currentStage), appliedAt: formatWallClockDateTime(args.application.appliedAt),
+      submissionChannel: text(args.application.submissionChannel), nextAction: text(args.application.nextAction), nextActionDueAt: formatWallClockDateTime(args.application.nextActionDueAt), note: text(args.application.note),
       usedResume: args.application.usedResume
     },
     events: [...args.events]
@@ -151,7 +152,7 @@ export function createAgentHandoffInput(args: {
         const rightTime = (right.eventTime ?? right.createdAt).getTime();
         return leftTime - rightTime || left.id.localeCompare(right.id);
       })
-      .map((event) => ({ type: event.eventType, title: event.title, time: event.eventTime?.toISOString() ?? null, details: parseEventDetails(event.detailsJson) })),
+      .map((event) => ({ type: event.eventType, title: event.title, time: formatWallClockDateTime(event.eventTime), details: parseEventDetails(event.detailsJson) })),
     candidate: candidateResult.candidate
   };
   return { ...input, warnings: [...candidateResult.warnings, ...collectWarnings(input)] };
