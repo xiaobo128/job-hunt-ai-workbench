@@ -125,22 +125,7 @@ Job Hunt AI Workbench 是一个面向求职者的智能求职工作台。它用 
 
 Web 工作台负责保存和确认事实，Agent 负责读取上下文、整理信息并提出建议。两者共享同一套求职记录，但承担不同角色。
 
-```mermaid
-flowchart TD
-    U[👤 用户] --> W[🖥️ Web 工作台]
-    W --> I[导入岗位、简历或招聘通知]
-    I --> P[需要时由 AI 解析与结构化]
-    P --> R[📌 待核对结果 / 待确认操作]
-    R --> C{用户确认？}
-    C -->|确认| D[(求职数据更新)]
-    C -->|拒绝或修正| W
-
-    D -->|读取已授权、已确认的信息| A[🤖 AI Agent]
-    U -->|提问或交办任务| A
-    A --> S[总结进展、分析匹配、准备面试]
-    S --> U
-    A -->|提交阶段变更建议| R
-```
+![Web 与 AI Agent 协作流程](reademe_pic/agent-collaboration-flow.svg)
 
 ### 两种协作方式
 
@@ -322,15 +307,7 @@ Q：你如何把技术需求转化为产品方案？
 
 所有重要修改都经过 Human-in-the-loop 流程：
 
-```mermaid
-flowchart LR
-    U[👤 用户发出更新指令] --> A[🤖 AI Agent]
-    A -->|创建 Proposal| W[🖥️ Job Hunt Workbench]
-    W --> P[显示待确认修改与依据]
-    P --> C{用户决定}
-    C -->|确认| D[(更新数据库)]
-    C -->|拒绝| K[保留原数据]
-```
+![Agent 数据修改流程](reademe_pic/agent-data-update-flow.svg)
 
 Proposal 会记录建议内容和来源依据。用户可以先检查修改前后的阶段、事件内容、截止时间等信息，再决定确认或拒绝。已拒绝或已关闭的申请不会通过这条建议流程继续推进。
 
@@ -338,10 +315,7 @@ Proposal 会记录建议内容和来源依据。用户可以先检查修改前�
 
 当前通过远程 MCP 协议连接支持 MCP 和自定义请求头的 Agent 客户端：
 
-```mermaid
-flowchart LR
-    A[🤖 AI Agent] <-->|MCP Protocol| W[🚀 Job Hunt Workbench]
-```
+![AI Agent 与 Job Hunt Workbench 的 MCP 连接](reademe_pic/agent-mcp-connection.svg)
 
 1. 打开「账户中心 → Agent 接入」。
 2. 创建一个按用途命名的 API Token，并立即保存一次性显示的明文。

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="220" viewBox="0 0 900 220" role="img" aria-labelledby="title desc">
+  <title id="title">AI Agent 与 Job Hunt Workbench 的 MCP 连接</title>
+  <desc id="desc">AI Agent 通过 MCP Protocol 与 Job Hunt Workbench 双向通信。</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+    <style>
+      .node { stroke: #cbd5e1; stroke-width: 1.5; }
+      .line { fill: none; stroke: #64748b; stroke-width: 2; marker-start: url(#arrow); marker-end: url(#arrow); }
+      .label { font: 600 18px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", Arial, sans-serif; fill: #0f172a; text-anchor: middle; dominant-baseline: middle; }
+      .edge-label { font: 500 15px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", "Microsoft YaHei", Arial, sans-serif; fill: #475569; text-anchor: middle; }
+    </style>
+  </defs>
+
+  <rect width="900" height="220" fill="#ffffff"/>
+
+  <path class="line" d="M 310 110 H 590"/>
+  <rect x="365" y="76" width="170" height="28" rx="14" fill="#ffffff"/>
+  <text class="edge-label" x="450" y="95">MCP Protocol</text>
+
+  <rect class="node" x="70" y="74" width="240" height="72" rx="18" fill="#f5f3ff"/>
+  <text class="label" x="190" y="110">🤖 AI Agent</text>
+
+  <rect class="node" x="590" y="74" width="240" height="72" rx="18" fill="#eff6ff"/>
+  <text class="label" x="710" y="99">🚀 Job Hunt</text>
+  <text class="label" x="710" y="121">Workbench</text>
+</svg>
