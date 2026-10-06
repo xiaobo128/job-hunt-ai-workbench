@@ -28,14 +28,23 @@ const { tools } = await client.listTools();
 assert.deepEqual(tools.map((tool) => tool.name).sort(), [
   "append_application_event",
   "get_application",
+  "get_job_hunt_overview",
   "get_resume",
   "get_today_application_events",
   "get_upcoming_deadlines",
   "list_applications",
-  "propose_recruitment_event",
   "propose_application_status_update",
+  "propose_job_application_create",
+  "propose_recruitment_event",
   "update_application_status"
 ]);
+
+const overview = await client.callTool({ name: "get_job_hunt_overview", arguments: {} });
+assert.equal(overview.isError, undefined);
+assert.equal(typeof overview.structuredContent?.generatedAt, "string");
+assert.equal(typeof overview.structuredContent?.progress, "object");
+assert.ok(Array.isArray(overview.structuredContent?.actionItems), "get_job_hunt_overview must return an actionItems array");
+assert.ok(Array.isArray(overview.structuredContent?.upcomingEvents), "get_job_hunt_overview must return an upcomingEvents array");
 
 const listed = await client.callTool({ name: "list_applications", arguments: {} });
 assert.equal(listed.isError, undefined);
@@ -75,6 +84,7 @@ if (unconfirmedResumeId) {
 await client.close();
 console.log(JSON.stringify({
   tools: tools.map((tool) => tool.name),
+  jobHuntOverview: "ok",
   applications: applications.length,
   confirmedResumeId: resumeId,
   getApplication: "ok",

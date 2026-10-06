@@ -1,6 +1,7 @@
 import { AgentProposalStatus } from "@prisma/client";
 import { PageShell } from "@/components/app-shell";
 import { prisma } from "@/lib/db";
+import { ownedProposalAccessWhere } from "@/lib/domain/agent-proposals";
 import { requireSessionUser } from "@/lib/session";
 import { ProposalCard } from "./_components/proposal-card";
 
@@ -8,9 +9,8 @@ export default async function ProposalsPage() {
   const user = await requireSessionUser();
   const proposals = await prisma.agentProposal.findMany({
     where: {
-      userId: user.id,
+      ...ownedProposalAccessWhere(user.id),
       status: AgentProposalStatus.PENDING,
-      application: { jobLead: { ownerId: user.id } }
     },
     select: {
       id: true,

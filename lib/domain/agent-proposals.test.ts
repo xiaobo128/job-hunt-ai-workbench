@@ -8,6 +8,7 @@ import { updateApplicationStatus } from "./applications";
 
 const ownedConfirmed = {
   userId: "user-a",
+  applicationId: "application-1",
   application: { jobLead: { ownerId: "user-a" } },
   type: AgentProposalType.APPLICATION_STATUS_UPDATE,
   status: AgentProposalStatus.CONFIRMED
@@ -68,7 +69,18 @@ test("missing APP_URL prevents proposal creation", async () => {
 });
 
 test("proposal detail lookup scopes both proposal and application ownership", () => {
-  assert.deepEqual(ownedProposalWhere({ userId: "user-a", proposalId: "proposal-1" }), { id: "proposal-1", userId: "user-a", application: { jobLead: { ownerId: "user-a" } } });
+  assert.deepEqual(ownedProposalWhere({ userId: "user-a", proposalId: "proposal-1" }), {
+    id: "proposal-1",
+    userId: "user-a",
+    OR: [
+      { type: "JOB_APPLICATION_CREATE", applicationId: null },
+      {
+        type: { in: ["APPLICATION_STATUS_UPDATE", "APPLICATION_EVENT_APPEND"] },
+        applicationId: { not: null },
+        application: { jobLead: { ownerId: "user-a" } }
+      }
+    ]
+  });
 });
 
 test("confirmed proposals are executable exactly for their owner and application owner", () => {
@@ -79,6 +91,10 @@ test("confirmed proposals are executable exactly for their owner and application
 
 test("executed proposals reject replay", () => {
   assert.equal(errorCode(() => assertProposalExecutable({ proposal: { ...ownedConfirmed, status: AgentProposalStatus.EXECUTED }, userId: "user-a" })), "ALREADY_EXECUTED");
+});
+
+test("existing proposal types still require an owned application after applicationId becomes nullable", () => {
+  assert.equal(errorCode(() => assertProposalExecutable({ proposal: { ...ownedConfirmed, applicationId: null, application: null }, userId: "user-a" })), "NOT_FOUND");
 });
 
 test("proposal payloads are exact typed payloads and event payloads contain no stage mutation", () => {

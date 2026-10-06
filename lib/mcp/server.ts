@@ -3,8 +3,11 @@ import { createMcpHandler, fromJsonSchema, McpServer } from "@modelcontextprotoc
 import { prisma } from "@/lib/db";
 import { AgentProposalError, createAgentProposal, executeConfirmedAgentProposal } from "@/lib/domain/agent-proposals";
 import { ApplicationStatusProposalError, proposeApplicationStatusUpdate, type ApplicationStatusProposalInput } from "@/lib/domain/application-status-proposals";
+import { JobApplicationCreateProposalError, proposeJobApplicationCreate, type JobApplicationCreateProposalInput } from "@/lib/domain/job-application-create-proposals";
 import { getCalendarEventDates, getDashboardEventDueAt, resolveEventTime } from "@/lib/event-time";
 import { ConfirmedResumeDocumentError, loadConfirmedResumeDocument } from "@/lib/resume-parsing/confirmed";
+import { buildJobHuntOverview } from "@/lib/job-hunt-overview";
+import { getDashboardDataForUser } from "@/lib/queries";
 import { uniqueCriticalEvents } from "@/lib/workflow";
 import { formatWallClockDateTime } from "@/lib/wall-clock";
 import { getRuntimeConfig } from "@/lib/env";
@@ -77,6 +80,44 @@ const proposeRecruitmentEventInput = fromJsonSchema<ProposeRecruitmentEventInput
   required: ["applicationId", "content"],
   additionalProperties: false
 });
+const proposeJobApplicationCreateInput = fromJsonSchema<JobApplicationCreateProposalInput>({
+  type: "object",
+  properties: {
+    job: {
+      type: "object",
+      properties: {
+        companyName: { type: "string", minLength: 1, maxLength: 500 },
+        roleTitle: { type: "string", minLength: 1, maxLength: 500 },
+        city: { type: "string", maxLength: 2000 },
+        industry: { type: "string", maxLength: 2000 },
+        seniority: { type: "string", maxLength: 2000 },
+        salaryRange: { type: "string", maxLength: 2000 },
+        sourceType: { type: "string", enum: ["MANUAL", "TEXT", "LINK"] },
+        sourceName: { type: "string", maxLength: 2000 },
+        sourceUrl: { type: "string", pattern: "^https?://", maxLength: 2000 },
+        skills: { type: "array", items: { type: "string", minLength: 1, maxLength: 2000 }, maxItems: 200 },
+        responsibilities: { type: "array", items: { type: "string", minLength: 1, maxLength: 2000 }, maxItems: 200 },
+        requirements: { type: "array", items: { type: "string", minLength: 1, maxLength: 2000 }, maxItems: 200 },
+        rawContent: { type: "string", maxLength: 50000 }
+      },
+      required: ["companyName", "roleTitle"],
+      additionalProperties: false
+    },
+    application: {
+      type: "object",
+      properties: {
+        requestedStage: { type: "string", enum: Object.values(ApplicationStage) },
+        submissionChannel: { type: "string", maxLength: 2000 },
+        nextAction: { type: "string", maxLength: 2000 },
+        note: { type: "string", maxLength: 2000 }
+      },
+      required: ["requestedStage"],
+      additionalProperties: false
+    }
+  },
+  required: ["job", "application"],
+  additionalProperties: false
+});
 
 type JsonObject = Record<string, unknown>;
 
@@ -102,6 +143,15 @@ function result(data: JsonObject) {
 function error(code: string, message: string) {
   return {
     content: [{ type: "text" as const, text: JSON.stringify({ error: code, message }) }],
+    isError: true
+  };
+}
+
+function detailedError(code: string, message: string, details: JsonObject) {
+  const data = { error: code, message, ...details };
+  return {
+    content: [{ type: "text" as const, text: JSON.stringify(data) }],
+    structuredContent: data,
     isError: true
   };
 }
@@ -134,6 +184,25 @@ export const mcpHandler = createMcpHandler(({ authInfo }) => {
   const server = new McpServer({ name: "job-hunt-ai-workbench", version: "1.0.0" });
 
   const requireUserId = () => userId || null;
+
+  server.registerTool(
+    "get_job_hunt_overview",
+    {
+      description: "Use this tool for high-level questions about the user's current job-search situation, such as what needs attention today, overall application progress, or upcoming assessments/interviews/deadlines. It returns deterministic structured facts from the same dashboard read model used by the Web app. Use get_application when detailed information about one application is needed.",
+      inputSchema: emptyInput,
+      annotations: { readOnlyHint: true, destructiveHint: false }
+    },
+    async () => {
+      const authenticatedUserId = requireUserId();
+      if (!authenticatedUserId) return error("unauthorized", "Authentication is required.");
+      try {
+        const dashboard = await getDashboardDataForUser(authenticatedUserId);
+        return result(buildJobHuntOverview(dashboard));
+      } catch {
+        return error("read_failed", "Unable to read the job-hunt overview.");
+      }
+    }
+  );
 
   server.registerTool(
     "list_applications",
@@ -282,6 +351,38 @@ export const mcpHandler = createMcpHandler(({ authInfo }) => {
         return result({ startDate: today.toISOString().slice(0, 10), days, deadlines });
       } catch {
         return error("read_failed", "Unable to read upcoming deadlines.");
+      }
+    }
+  );
+
+  server.registerTool(
+    "propose_job_application_create",
+    {
+      description: "Create a pending human-confirmation proposal for a new job lead and application that do not yet exist in the workbench. Use this after the external Agent has extracted deterministic job facts from a JD, screenshot, link, or user message. Include the available JD text in job.rawContent when possible. This tool never creates a JobLead or Application directly; the authenticated user must review the returned confirmationUrl and confirm creation in the Web app. Use list_applications instead when the job may already exist.",
+      inputSchema: proposeJobApplicationCreateInput,
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false }
+    },
+    async (input) => {
+      const authenticatedUserId = requireUserId();
+      if (!authenticatedUserId) return error("unauthorized", "Authentication is required.");
+      try {
+        const proposal = await createConfirmableProposal({
+          appUrl: getRuntimeConfig().appUrl,
+          createProposal: () => proposeJobApplicationCreate({ userId: authenticatedUserId, input })
+        });
+        return result(proposal);
+      } catch (cause) {
+        if (cause instanceof ProposalConfirmationConfigurationError) {
+          return error("configuration_error", "APP_URL must be a valid absolute HTTP(S) URL before creating confirmation links.");
+        }
+        if (cause instanceof JobApplicationCreateProposalError) {
+          return detailedError(
+            "duplicate_application",
+            "A matching job application or pending creation proposal already exists. Ask the user whether to update the existing record instead of creating another one.",
+            { duplicate: cause.duplicate }
+          );
+        }
+        return error("proposal_failed", "Unable to create the job application proposal.");
       }
     }
   );

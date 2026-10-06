@@ -34,6 +34,7 @@ for (const relativePath of [
   "prisma/migrations/migration_lock.toml",
   "prisma/migrations/20260911000000_baseline/migration.sql",
   "prisma/migrations/20260911000001_add_resume_parse/migration.sql",
+  "prisma/migrations/20261006000012_add_job_application_create_proposals/migration.sql",
   "app/api/health/route.ts",
   "app/api/resumes/[id]/download/route.ts",
   "app/api/resume-assets/[id]/download/route.ts",
@@ -47,6 +48,9 @@ for (const relativePath of [
 
 requireText("prisma/schema.postgres.prisma", /provider\s*=\s*"postgresql"/, "PostgreSQL schema is selected");
 requireText("prisma/migrations/migration_lock.toml", /provider\s*=\s*"postgresql"/, "migration lock targets PostgreSQL");
+requireText("prisma/schema.postgres.prisma", /enum AgentProposalType[\s\S]*JOB_APPLICATION_CREATE/, "job application creation proposal type is present");
+requireText("prisma/schema.postgres.prisma", /model AgentProposal[\s\S]*applicationId\s+String\?/, "creation proposals may omit applicationId");
+requireText("prisma/migrations/20261006000012_add_job_application_create_proposals/migration.sql", /ADD VALUE 'JOB_APPLICATION_CREATE'[\s\S]*ALTER COLUMN "applicationId" DROP NOT NULL/, "job application creation proposal migration is complete");
 requireText("app/api/health/route.ts", /SELECT 1/, "health endpoint probes the database");
 
 for (const relativePath of [

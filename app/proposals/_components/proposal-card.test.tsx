@@ -77,3 +77,39 @@ test("pending recruitment event proposal renders user-facing event details and i
   assert.match(markup, /查看通知原文/);
   assert.doesNotMatch(markup, /APPLICATION_EVENT_APPEND/);
 });
+
+test("pending job creation proposal renders reviewable facts without implementation jargon", () => {
+  const proposal: ProposalCardData = {
+    ...pendingProposal,
+    type: AgentProposalType.JOB_APPLICATION_CREATE,
+    application: null,
+    sourceType: "AGENT_JOB_APPLICATION_CREATE",
+    evidenceText: "Agent proposed creating a job application.",
+    payloadJson: JSON.stringify({
+      job: {
+        companyName: "华宝新能源",
+        roleTitle: "营销管培生（J12332）",
+        city: "广东省深圳市",
+        sourceType: "TEXT",
+        sourceUrl: "https://jobs.example.com/J12332",
+        responsibilities: ["负责市场项目"],
+        requirements: ["本科及以上"],
+        rawContent: "华宝新能源营销管培生岗位原始 JD"
+      },
+      application: { requestedStage: "APPLIED", submissionChannel: "官网" }
+    })
+  };
+
+  const markup = renderToStaticMarkup(<ProposalCard proposal={proposal} />);
+  assert.match(markup, /新增求职记录/);
+  assert.match(markup, /华宝新能源/);
+  assert.match(markup, /营销管培生（J12332）/);
+  assert.match(markup, /广东省深圳市/);
+  assert.match(markup, /已投递/);
+  assert.match(markup, /确认创建时自动记录/);
+  assert.match(markup, /负责市场项目/);
+  assert.match(markup, /本科及以上/);
+  assert.match(markup, /岗位原始 JD/);
+  assert.match(markup, /确认并创建/);
+  assert.doesNotMatch(markup, /JOB_APPLICATION_CREATE|payloadJson|MCP|PENDING|AGENT_JOB_APPLICATION_CREATE/);
+});

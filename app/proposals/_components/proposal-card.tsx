@@ -4,7 +4,7 @@ import { getStageLabel } from "@/lib/constants";
 import { getEventTypeLabel } from "@/lib/event-types";
 import { formatDate } from "@/lib/format";
 import { formatWallClockDisplay } from "@/lib/wall-clock";
-import { confirmProposalAction, confirmRecruitmentEventProposalAction, rejectProposalAction } from "../actions";
+import { confirmJobApplicationCreateProposalAction, confirmProposalAction, confirmRecruitmentEventProposalAction, rejectProposalAction } from "../actions";
 
 export type ProposalCardData = {
   id: string;
@@ -18,16 +18,20 @@ export type ProposalCardData = {
   application: {
     currentStage: ApplicationStage;
     jobLead: { companyName: string; roleTitle: string };
-  };
+  } | null;
 };
 
 export function ProposalCard({ proposal }: { proposal: ProposalCardData }) {
+  const payload = parseObject(proposal.payloadJson);
+  const createJob = proposal.type === AgentProposalType.JOB_APPLICATION_CREATE ? parseObject(payload?.job) : null;
+  const companyName = proposal.application?.jobLead.companyName ?? textValue(createJob?.companyName) ?? "未提供公司";
+  const roleTitle = proposal.application?.jobLead.roleTitle ?? textValue(createJob?.roleTitle) ?? "未提供岗位";
   return (
     <article className="rounded-3xl border border-line bg-white p-5 shadow-card">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-ink">
-            {proposal.application.jobLead.companyName} · {proposal.application.jobLead.roleTitle}
+            {companyName} · {roleTitle}
           </h2>
           <p className="mt-1 text-sm text-slate-500">
             {proposalTypeLabel(proposal.type)} · 创建于 {formatDate(proposal.createdAt)}
@@ -38,19 +42,21 @@ export function ProposalCard({ proposal }: { proposal: ProposalCardData }) {
         </span>
       </div>
 
-      <ProposalChange type={proposal.type} payloadJson={proposal.payloadJson} currentStage={proposal.application.currentStage} />
+      <ProposalChange type={proposal.type} payloadJson={proposal.payloadJson} currentStage={proposal.application?.currentStage ?? null} />
       {proposal.type === AgentProposalType.APPLICATION_EVENT_APPEND ? (
         <NotificationOriginal sourceType={proposal.sourceType} sourceIdentifier={proposal.sourceIdentifier} evidenceText={proposal.evidenceText} />
+      ) : proposal.type === AgentProposalType.JOB_APPLICATION_CREATE ? (
+        null
       ) : (
         <ProposalSource sourceType={proposal.sourceType} sourceIdentifier={proposal.sourceIdentifier} evidenceText={proposal.evidenceText} />
       )}
 
       {proposal.status === AgentProposalStatus.PENDING ? (
         <div className="mt-4 flex gap-3">
-          <form action={proposal.type === AgentProposalType.APPLICATION_EVENT_APPEND ? confirmRecruitmentEventProposalAction : confirmProposalAction}>
+          <form action={confirmationAction(proposal.type)}>
             <input type="hidden" name="proposalId" value={proposal.id} />
             <button className="rounded-xl bg-ink px-4 py-2.5 text-sm font-medium text-white">
-              确认并执行
+              {proposal.type === AgentProposalType.JOB_APPLICATION_CREATE ? "确认并创建" : "确认并执行"}
             </button>
           </form>
           <form action={rejectProposalAction}>
@@ -66,7 +72,9 @@ export function ProposalCard({ proposal }: { proposal: ProposalCardData }) {
 }
 
 export function proposalTypeLabel(type: AgentProposalType) {
-  return type === AgentProposalType.APPLICATION_STATUS_UPDATE ? "更新申请阶段" : "新增申请事件";
+  if (type === AgentProposalType.APPLICATION_STATUS_UPDATE) return "更新申请阶段";
+  if (type === AgentProposalType.APPLICATION_EVENT_APPEND) return "新增申请事件";
+  return "新增求职记录";
 }
 
 export function statusLabel(status: AgentProposalStatus) {
@@ -86,7 +94,7 @@ function proposalStatusMessage(status: AgentProposalStatus) {
   return "";
 }
 
-function ProposalChange({ type, payloadJson, currentStage }: { type: AgentProposalType; payloadJson: string; currentStage: ApplicationStage }) {
+function ProposalChange({ type, payloadJson, currentStage }: { type: AgentProposalType; payloadJson: string; currentStage: ApplicationStage | null }) {
   const payload = parseObject(payloadJson);
   if (!payload) return <section className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">无法读取此项变更内容。</section>;
 
@@ -95,12 +103,16 @@ function ProposalChange({ type, payloadJson, currentStage }: { type: AgentPropos
       <section className="mt-4 rounded-2xl bg-slate-50 p-4">
         <h3 className="text-sm font-medium text-ink">即将发生的变化</h3>
         <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
-          <ChangeField label="申请阶段" value={typeof payload.requestedStage === "string" ? `${getStageLabel(currentStage)} → ${getStageLabel(payload.requestedStage as ApplicationStage)}` : null} />
+          <ChangeField label="申请阶段" value={typeof payload.requestedStage === "string" && currentStage ? `${getStageLabel(currentStage)} → ${getStageLabel(payload.requestedStage as ApplicationStage)}` : null} />
           {textValue(payload.nextAction) ? <ChangeField label="下一步行动" value={textValue(payload.nextAction)} /> : null}
           {textValue(payload.note) ? <ChangeField label="备注" value={textValue(payload.note)} /> : null}
         </dl>
       </section>
     );
+  }
+
+  if (type === AgentProposalType.JOB_APPLICATION_CREATE) {
+    return <JobApplicationCreateChange payload={payload} />;
   }
 
   const details = parseObject(textValue(payload.detailsJson));
@@ -128,6 +140,47 @@ function ProposalChange({ type, payloadJson, currentStage }: { type: AgentPropos
       </dl>
     </section>
   );
+}
+
+function JobApplicationCreateChange({ payload }: { payload: Record<string, unknown> }) {
+  const job = parseObject(payload.job);
+  const application = parseObject(payload.application);
+  const requestedStage = textValue(application?.requestedStage) as ApplicationStage | null;
+  return (
+    <section className="mt-4 rounded-2xl bg-slate-50 p-4">
+      <h3 className="text-sm font-medium text-ink">新增求职记录</h3>
+      <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+        <ChangeField label="公司" value={textValue(job?.companyName)} />
+        <ChangeField label="岗位" value={textValue(job?.roleTitle)} />
+        <ChangeField label="地点" value={textValue(job?.city)} />
+        <ChangeField label="行业" value={textValue(job?.industry)} />
+        <ChangeField label="职级" value={textValue(job?.seniority)} />
+        <ChangeField label="薪资" value={textValue(job?.salaryRange)} />
+        <ChangeField label="初始状态" value={requestedStage ? getStageLabel(requestedStage) : null} />
+        <ChangeField label="投递时间" value={requestedStage === "APPLIED" ? "确认创建时自动记录" : null} />
+        <ChangeField label="来源类型" value={textValue(job?.sourceType)} />
+        <ChangeField label="来源名称" value={textValue(job?.sourceName)} />
+        <ChangeField label="投递渠道" value={textValue(application?.submissionChannel)} />
+        <ChangeField label="下一步行动" value={textValue(application?.nextAction)} />
+        <ChangeField label="备注" value={textValue(application?.note)} />
+        {textValue(job?.sourceUrl) ? <div><dt className="text-xs font-medium text-slate-500">来源链接</dt><dd className="mt-1"><a href={textValue(job?.sourceUrl) as string} target="_blank" rel="noreferrer" className="text-sm font-medium text-ink underline underline-offset-4">打开岗位链接</a></dd></div> : <ChangeField label="来源链接" value={null} />}
+      </dl>
+      <TextListSection title="技能关键词" values={textList(job?.skills)} />
+      <TextListSection title="岗位职责" values={textList(job?.responsibilities)} />
+      <TextListSection title="岗位要求" values={textList(job?.requirements)} />
+      <div className="mt-4"><div className="text-xs font-medium text-slate-500">原始依据 / JD</div><pre className="mt-1 max-h-96 overflow-auto whitespace-pre-wrap text-sm leading-6 text-slate-700">{textValue(job?.rawContent) ?? "未提供"}</pre></div>
+    </section>
+  );
+}
+
+function TextListSection({ title, values }: { title: string; values: string[] }) {
+  return <div className="mt-4"><div className="text-xs font-medium text-slate-500">{title}</div><div className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{values.length ? values.join("\n") : "未提供"}</div></div>;
+}
+
+function confirmationAction(type: AgentProposalType) {
+  if (type === AgentProposalType.APPLICATION_EVENT_APPEND) return confirmRecruitmentEventProposalAction;
+  if (type === AgentProposalType.JOB_APPLICATION_CREATE) return confirmJobApplicationCreateProposalAction;
+  return confirmProposalAction;
 }
 
 function ProposalSource({ sourceType, sourceIdentifier, evidenceText }: { sourceType: string; sourceIdentifier: string | null; evidenceText: string }) {

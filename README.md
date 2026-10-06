@@ -335,10 +335,12 @@ Server URL：https://project-iry1g.vercel.app/api/mcp
 | 类型 | 工具 | 用途 |
 | --- | --- | --- |
 | 查询 | `list_applications` | 查询岗位与投递概况 |
+| 查询 | `get_job_hunt_overview` | 查询当前进度、待办与近期重要事项总览 |
 | 查询 | `get_application` | 读取单个申请、JD 和事件时间线 |
 | 查询 | `get_resume` | 读取指定的已确认简历 |
 | 查询 | `get_today_application_events` | 查询今天的申请事件 |
 | 查询 | `get_upcoming_deadlines` | 查询未来一段时间的截止事项 |
+| 建议 | `propose_job_application_create` | 创建待人工确认的新岗位与申请 Proposal |
 | 建议 | `propose_application_status_update` | 创建一条待人工确认的阶段变更 Proposal |
 | 执行 | `update_application_status` | 执行一条已经在 Web 中确认的阶段变更 Proposal |
 | 执行 | `append_application_event` | 执行一条已经在 Web 中确认的新增事件 Proposal |

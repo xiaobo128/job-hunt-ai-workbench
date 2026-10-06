@@ -7,13 +7,18 @@ import { assessmentEventTypes, interviewEventTypes, isInterviewEventType } from 
 
 export async function getDashboardData() {
   const user = await requireSessionUser();
+
+  return getDashboardDataForUser(user.id);
+}
+
+export async function getDashboardDataForUser(userId: string) {
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const windowEnd = new Date(todayStart.getFullYear(), todayStart.getMonth(), todayStart.getDate() + 8);
   const completedWindowStart = new Date(todayStart.getFullYear(), todayStart.getMonth(), todayStart.getDate() - 2);
   const activeApplicationWhere = {
     currentStage: { notIn: [ApplicationStage.CLOSED, ApplicationStage.REJECTED] },
-    jobLead: { ownerId: user.id, status: { notIn: [ApplicationStage.CLOSED, ApplicationStage.REJECTED] } }
+    jobLead: { ownerId: userId, status: { notIn: [ApplicationStage.CLOSED, ApplicationStage.REJECTED] } }
   };
 
   const [applications, deadlineEvents, scheduleEvents, recentEvents, calendarEvents, completedEvents] = await withDbRetry("getDashboardData", () =>
@@ -304,6 +309,15 @@ export async function getDashboardData() {
   }
 
   const recentTimelineEvents = uniqueCriticalEvents(recentEvents).slice(0, 10);
+  const upcomingEvents = [
+    ...uniqueCriticalEvents(deadlineEvents),
+    ...uniqueCriticalEvents(scheduleEvents)
+  ].flatMap((event) => {
+    const dueAt = getDashboardEventDueAt(event);
+    if (!dueAt || dueAt < todayStart || dueAt >= windowEnd) return [];
+
+    return [{ ...event, dueAt }];
+  }).sort((left, right) => left.dueAt.getTime() - right.dueAt.getTime() || left.id.localeCompare(right.id));
   const progress = {
     readyToApply: 0,
     applied: 0,
@@ -326,6 +340,7 @@ export async function getDashboardData() {
     recentTimelineEvents,
     todayActionItems: sortRecentTaskItems(todayActionItems),
     calendarEvents,
+    upcomingEvents,
     progress
   };
 }

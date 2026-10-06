@@ -1,0 +1,3 @@
+ALTER TYPE "AgentProposalType" ADD VALUE 'JOB_APPLICATION_CREATE';
+
+ALTER TABLE "AgentProposal" ALTER COLUMN "applicationId" DROP NOT NULL;

@@ -46,7 +46,7 @@ import { redirect } from "next/navigation";
 import { saveUpload } from "@/lib/storage";
 import { generateApiTokenValue, sha256 } from "@/lib/agent-auth";
 import { triggerOutboundWebhook } from "@/lib/agent-webhooks";
-import { appendApplicationEvent, updateApplicationStatus } from "@/lib/domain/applications";
+import { appendApplicationEvent, createJobApplication, updateApplicationStatus } from "@/lib/domain/applications";
 import { parseWallClockDate, parseWallClockDateTime } from "@/lib/wall-clock";
 
 const EXCEL_IMPORT_MAX_BYTES = 5 * 1024 * 1024;
@@ -341,12 +341,12 @@ export async function createJobLead(formData: FormData) {
   const roleTitle = manualRoleTitle || parsed.roleTitle;
   const parseNote = [...imageOcrNotes, parsedResult.note].filter(Boolean).join(" ");
 
-  const created = await prisma.jobLead.create({
-    data: {
-      ownerId: user.id,
+  const created = await createJobApplication({
+    userId: user.id,
+    review: { needsReview: true },
+    job: {
       parseProvider: parsedResult.provider,
       parseNote,
-      needsReview: true,
       sourceType: parsed.sourceType,
       sourceName: parsed.sourceName,
       sourceUrl: parsed.sourceUrl,
@@ -359,25 +359,22 @@ export async function createJobLead(formData: FormData) {
       city: parsed.city,
       seniority: parsed.seniority,
       salaryRange: parsed.salaryRange,
-      skills: JSON.stringify(parsed.skills),
-      responsibilities: JSON.stringify(parsed.responsibilities),
-      requirements: JSON.stringify(parsed.requirements),
+      skills: parsed.skills,
+      responsibilities: parsed.responsibilities,
+      requirements: parsed.requirements,
       rawContent: parsed.rawContent,
-      parsedSummary: parsed.parsedSummary,
-      status: ApplicationStage.READY_TO_APPLY,
-      application: {
-        create: {
-          currentStage: ApplicationStage.READY_TO_APPLY,
-          submissionChannel: sourceName?.trim() || null
-        }
-      }
+      parsedSummary: parsed.parsedSummary
+    },
+    application: {
+      requestedStage: ApplicationStage.READY_TO_APPLY,
+      submissionChannel: sourceName?.trim() || null
     }
   });
 
   revalidatePath("/");
   revalidatePath("/jobs");
   revalidatePath("/board");
-  redirect(`/jobs/${created.id}?review=1`);
+  redirect(`/jobs/${created.jobLeadId}?review=1`);
 }
 
 export async function updateJobLead(formData: FormData) {
