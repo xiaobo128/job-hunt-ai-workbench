@@ -99,11 +99,11 @@ function mapExcelStage(value: string): ApplicationStage {
   if (/已投递|已申请|已网申/.test(normalized)) return ApplicationStage.APPLIED;
   if (/笔试/.test(normalized)) return ApplicationStage.WRITTEN_TEST;
   if (/测评/.test(normalized)) return ApplicationStage.ASSESSMENT;
-  if (/ai面|一面/.test(normalized)) return ApplicationStage.FIRST_INTERVIEW;
+  if (/ai面(?:试)?/.test(normalized)) return ApplicationStage.AI_INTERVIEW;
+  if (/一面/.test(normalized)) return ApplicationStage.FIRST_INTERVIEW;
   if (/二面/.test(normalized)) return ApplicationStage.SECOND_INTERVIEW;
   if (/三面/.test(normalized)) return ApplicationStage.THIRD_INTERVIEW;
   if (/终面/.test(normalized)) return ApplicationStage.FINAL_INTERVIEW;
-  if (/面试/.test(normalized)) return ApplicationStage.INTERVIEW;
   if (/谈薪/.test(normalized)) return ApplicationStage.NEGOTIATION;
   if (/offer|已录用|录用/.test(normalized)) return ApplicationStage.OFFER;
   if (/挂|拒绝|未通过|淘汰/.test(normalized)) return ApplicationStage.REJECTED;

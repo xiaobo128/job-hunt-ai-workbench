@@ -55,7 +55,7 @@ test("candidate facts are a minimal confirmed projection", () => {
 test("handoff with no confirmed resume explicitly omits candidate facts and preserves missing fields", () => {
   const input = createAgentHandoffInput({
     job: { id: "job-1", companyName: "", roleTitle: "", city: null, seniority: null, salaryRange: null, skills: "not-json", responsibilities: "[]", requirements: "[]", sourceUrl: null },
-    application: { id: "application-1", currentStage: "INTERVIEW", appliedAt: null, submissionChannel: null, nextAction: null, nextActionDueAt: null, note: null, usedResume: null },
+    application: { id: "application-1", currentStage: "AI_INTERVIEW", appliedAt: null, submissionChannel: null, nextAction: null, nextActionDueAt: null, note: null, usedResume: null },
     events: [],
     candidateSource: null
   });

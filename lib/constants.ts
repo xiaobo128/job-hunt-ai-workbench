@@ -8,7 +8,7 @@ export const applicationStageConfig: Record<ApplicationStage, { label: string; b
   APPLIED: { label: "已投递", badgeClassName: "bg-sky-50 text-sky-700 ring-sky-200", order: 2 },
   ASSESSMENT: { label: "提交测评", badgeClassName: "bg-orange-50 text-orange-700 ring-orange-200", order: 3 },
   WRITTEN_TEST: { label: "笔试", badgeClassName: "bg-amber-50 text-amber-700 ring-amber-200", order: 4 },
-  INTERVIEW: { label: "面试", badgeClassName: "bg-violet-50 text-violet-700 ring-violet-200", order: 5 },
+  AI_INTERVIEW: { label: "AI面", badgeClassName: "bg-violet-50 text-violet-700 ring-violet-200", order: 5 },
   FIRST_INTERVIEW: { label: "一面", badgeClassName: "bg-purple-50 text-purple-700 ring-purple-200", order: 6 },
   SECOND_INTERVIEW: { label: "二面", badgeClassName: "bg-indigo-50 text-indigo-700 ring-indigo-200", order: 7 },
   THIRD_INTERVIEW: { label: "三面", badgeClassName: "bg-indigo-100 text-indigo-800 ring-indigo-200", order: 8 },
@@ -30,7 +30,7 @@ export function normalizeApplicationStage(stage: ApplicationStage): ApplicationS
   }
 
   if (stage === "FINAL_INTERVIEW") {
-    return "INTERVIEW";
+    return "AI_INTERVIEW";
   }
 
   return stage;

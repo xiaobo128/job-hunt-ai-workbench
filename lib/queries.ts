@@ -308,7 +308,7 @@ export async function getDashboardData() {
     readyToApply: 0,
     applied: 0,
     assessment: 0,
-    interview: 0,
+    aiInterview: 0,
     offer: 0
   };
 
@@ -316,7 +316,7 @@ export async function getDashboardData() {
     if (application.currentStage === "INTERESTED" || application.currentStage === "READY_TO_APPLY") progress.readyToApply += 1;
     else if (application.currentStage === "APPLIED") progress.applied += 1;
     else if (["ASSESSMENT", "WRITTEN_TEST"].includes(application.currentStage)) progress.assessment += 1;
-    else if (["INTERVIEW", "FIRST_INTERVIEW", "SECOND_INTERVIEW", "THIRD_INTERVIEW", "FINAL_INTERVIEW"].includes(application.currentStage)) progress.interview += 1;
+    else if (application.currentStage === "AI_INTERVIEW") progress.aiInterview += 1;
     else if (application.currentStage === "OFFER") progress.offer += 1;
   }
 

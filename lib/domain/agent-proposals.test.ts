@@ -64,8 +64,8 @@ test("executed proposals reject replay", () => {
 });
 
 test("proposal payloads are exact typed payloads and event payloads contain no stage mutation", () => {
-  const status = applicationStatusProposalPayloadSchema.parse({ requestedStage: "INTERVIEW", note: "Recruiter confirmed." });
-  assert.deepEqual(status, { requestedStage: "INTERVIEW", note: "Recruiter confirmed." });
+  const status = applicationStatusProposalPayloadSchema.parse({ requestedStage: "AI_INTERVIEW", note: "Recruiter confirmed." });
+  assert.deepEqual(status, { requestedStage: "AI_INTERVIEW", note: "Recruiter confirmed." });
   const event = applicationEventProposalPayloadSchema.parse({ eventType: "INTERVIEW", title: "First interview", detailsJson: '{"content":"Invite"}' });
   assert.equal("requestedStage" in event, false);
   assert.throws(() => applicationEventProposalPayloadSchema.parse({ ...event, requestedStage: "OFFER" }));
@@ -79,7 +79,7 @@ test("proposal execution reuses the domain services and event append cannot chan
   };
   await executeProposalMutation({
     type: AgentProposalType.APPLICATION_STATUS_UPDATE,
-    payloadJson: JSON.stringify({ requestedStage: "INTERVIEW" }),
+    payloadJson: JSON.stringify({ requestedStage: "AI_INTERVIEW" }),
     userId: "user-a", applicationId: "application-1", transaction: {} as never, services: services as never
   });
   await executeProposalMutation({
@@ -88,7 +88,7 @@ test("proposal execution reuses the domain services and event append cannot chan
     userId: "user-a", applicationId: "application-1", transaction: {} as never, services: services as never
   });
   assert.equal(calls[0].service, "status");
-  assert.equal(calls[0].input.requestedStage, "INTERVIEW");
+  assert.equal(calls[0].input.requestedStage, "AI_INTERVIEW");
   assert.equal(calls[1].service, "event");
   assert.equal("requestedStage" in calls[1].input, false);
 });

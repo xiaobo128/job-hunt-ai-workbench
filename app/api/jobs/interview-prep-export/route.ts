@@ -10,7 +10,7 @@ const interviewPrepStages = [
   ApplicationStage.APPLIED,
   ApplicationStage.ASSESSMENT,
   ApplicationStage.WRITTEN_TEST,
-  ApplicationStage.INTERVIEW,
+  ApplicationStage.AI_INTERVIEW,
   ApplicationStage.FIRST_INTERVIEW,
   ApplicationStage.SECOND_INTERVIEW,
   ApplicationStage.THIRD_INTERVIEW,

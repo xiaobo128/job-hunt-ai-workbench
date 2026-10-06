@@ -7,9 +7,9 @@ const stageNodes = [
   { label: "提交测评", stage: "ASSESSMENT", matches: ["ASSESSMENT"] },
   { label: "笔试", stage: "WRITTEN_TEST", matches: ["WRITTEN_TEST"] },
   {
-    label: "面试",
-    stage: "INTERVIEW",
-    matches: ["INTERVIEW", "FIRST_INTERVIEW", "SECOND_INTERVIEW", "THIRD_INTERVIEW", "FINAL_INTERVIEW"]
+    label: "AI面",
+    stage: "AI_INTERVIEW",
+    matches: ["AI_INTERVIEW", "FIRST_INTERVIEW", "SECOND_INTERVIEW", "THIRD_INTERVIEW", "FINAL_INTERVIEW"]
   },
   { label: "Offer", stage: "OFFER", matches: ["NEGOTIATION", "OFFER"] }
 ] as const satisfies ReadonlyArray<{

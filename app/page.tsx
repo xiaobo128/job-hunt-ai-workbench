@@ -35,7 +35,7 @@ export default async function DashboardPage() {
           <ProgressItem label="待投递" value={progress.readyToApply} />
           <ProgressItem label="已投递" value={progress.applied} />
           <ProgressItem label="测评" value={progress.assessment} />
-          <ProgressItem label="面试" value={progress.interview} />
+          <ProgressItem label="AI面" value={progress.aiInterview} />
           <ProgressItem label="Offer" value={progress.offer} />
         </dl>
       </Panel>
