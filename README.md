@@ -323,7 +323,7 @@ Proposal 会记录建议内容和来源依据。用户可以先检查修改前�
 
 ```text
 请帮我连接 Job Hunt Workbench 的远程 MCP 服务，并将它命名为 job-hunt-workbench。
-Server URL：https://<你的部署域名>/api/mcp
+Server URL：https://https://project-iry1g.vercel.app/api/mcp
 请求头：Authorization: Bearer <YOUR_API_TOKEN>
 配置完成后，请先执行一次只读查询来验证连接，并告诉我是否连接成功。未经我明确确认，请不要创建、修改或删除任何数据。
 ```
