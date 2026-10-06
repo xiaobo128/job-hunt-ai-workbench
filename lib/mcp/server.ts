@@ -7,6 +7,8 @@ import { getCalendarEventDates, getDashboardEventDueAt, resolveEventTime } from 
 import { ConfirmedResumeDocumentError, loadConfirmedResumeDocument } from "@/lib/resume-parsing/confirmed";
 import { uniqueCriticalEvents } from "@/lib/workflow";
 import { formatWallClockDateTime } from "@/lib/wall-clock";
+import { getRuntimeConfig } from "@/lib/env";
+import { buildProposalConfirmationUrl } from "@/lib/proposal-confirmation-url";
 
 const emptyInput = fromJsonSchema<Record<string, never>>({ type: "object", additionalProperties: false });
 const applicationIdInput = fromJsonSchema<{ applicationId: string }>({
@@ -264,26 +266,29 @@ export const mcpHandler = createMcpHandler(({ authInfo }) => {
   server.registerTool(
     "propose_application_status_update",
     {
-      description: "Create a human-review proposal for changing an owned, active application's stage. This never confirms or executes the change.",
+      description: "Create a PENDING application-stage proposal only. The agent and its Bearer token cannot confirm it: the user must open the returned confirmationUrl in an authenticated web session. For status proposals, web confirmation immediately executes the stored mutation, so after the user confirms, do not call update_application_status. If the client cannot open URLs, give confirmationUrl directly to the user.",
       inputSchema: proposeApplicationStatusUpdateInput,
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false }
     },
     async (input) => {
       const authenticatedUserId = requireUserId();
       if (!authenticatedUserId) return error("unauthorized", "Authentication is required.");
+      const appUrl = getRuntimeConfig().appUrl;
+      if (!appUrl) return error("configuration_error", "APP_URL must be configured before creating confirmation links.");
       try {
+        new URL(appUrl);
         const proposal = await proposeApplicationStatusUpdate({
           userId: authenticatedUserId,
           input,
           dependencies: {
             findOwnedApplication: ({ userId: ownerId, applicationId }) => prisma.application.findFirst({
               where: { id: applicationId, jobLead: { ownerId } },
-              select: { id: true, currentStage: true }
+              select: { id: true, currentStage: true, jobLead: { select: { companyName: true, roleTitle: true } } }
             }),
             createProposal: createAgentProposal
           }
         });
-        return result(proposal);
+        return result({ ...proposal, confirmationUrl: buildProposalConfirmationUrl(appUrl, proposal.proposalId) });
       } catch (cause) {
         if (cause instanceof ApplicationStatusProposalError) {
           return cause.code === "APPLICATION_CLOSED"

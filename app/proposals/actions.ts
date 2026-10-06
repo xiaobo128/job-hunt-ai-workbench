@@ -33,6 +33,7 @@ export async function confirmProposalAction(formData: FormData) {
     revalidatePath("/jobs");
   }
   revalidatePath("/proposals");
+  revalidatePath(`/proposals/${id}`);
 }
 
 export async function confirmRecruitmentEventProposalAction(formData: FormData) {
@@ -51,6 +52,8 @@ export async function confirmRecruitmentEventProposalAction(formData: FormData) 
 
 export async function rejectProposalAction(formData: FormData) {
   const user = await requireSessionUser();
-  await rejectAgentProposal({ userId: user.id, proposalId: proposalId(formData) });
+  const id = proposalId(formData);
+  await rejectAgentProposal({ userId: user.id, proposalId: id });
   revalidatePath("/proposals");
+  revalidatePath(`/proposals/${id}`);
 }

@@ -63,6 +63,14 @@ export class AgentProposalError extends Error {
   }
 }
 
+export function ownedProposalWhere({ userId, proposalId }: { userId: string; proposalId: string }) {
+  return {
+    id: proposalId,
+    userId,
+    application: { jobLead: { ownerId: userId } }
+  } as const;
+}
+
 function parsePayload(type: AgentProposalType, payload: unknown): ProposalPayload {
   return type === AgentProposalType.APPLICATION_STATUS_UPDATE
     ? applicationStatusProposalPayloadSchema.parse(payload)

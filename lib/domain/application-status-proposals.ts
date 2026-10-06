@@ -9,7 +9,11 @@ export type ApplicationStatusProposalInput = {
 };
 
 type ApplicationStatusProposalDependencies = {
-  findOwnedApplication: (input: { userId: string; applicationId: string }) => Promise<{ id: string; currentStage: ApplicationStage } | null>;
+  findOwnedApplication: (input: { userId: string; applicationId: string }) => Promise<{
+    id: string;
+    currentStage: ApplicationStage;
+    jobLead: { companyName: string; roleTitle: string };
+  } | null>;
   createProposal: (input: {
     userId: string;
     input: {
@@ -71,6 +75,10 @@ export async function proposeApplicationStatusUpdate({
     proposalId: proposal.id,
     status: proposal.status,
     applicationId: application.id,
-    requestedStage: input.requestedStage
+    companyName: application.jobLead.companyName,
+    roleTitle: application.jobLead.roleTitle,
+    currentStage: application.currentStage,
+    requestedStage: input.requestedStage,
+    confirmationRequired: true as const
   };
 }
