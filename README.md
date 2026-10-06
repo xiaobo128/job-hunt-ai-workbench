@@ -315,20 +315,20 @@ Proposal 会记录建议内容和来源依据。用户可以先检查修改前�
 
 ### 🔌 如何连接 AI Agent？
 
-当前通过远程 MCP 协议连接支持 MCP 和自定义请求头的 Agent 客户端：
+当前可通过远程 MCP 协议连接支持 MCP 和自定义请求头的 Agent 客户端：
 
 ![AI Agent 与 Job Hunt Workbench 的 MCP 连接](reademe_pic/agent-mcp-connection.svg)
 
-1. 打开「账户中心 → Agent 接入」。
-2. 创建一个按用途命名的 API Token，并立即保存一次性显示的明文。
-3. 在 Agent 客户端中填写：
+先在「账户中心 → Agent 接入」创建一个按用途命名的 API Token，并立即保存一次性显示的明文。然后将下面这段话中的部署域名和 Token 替换为你自己的信息，直接发送给 Agent：
 
 ```text
-Server URL: https://<你的部署域名>/api/mcp
-Authorization: Bearer <YOUR_API_TOKEN>
+请帮我连接 Job Hunt Workbench 的远程 MCP 服务，并将它命名为 job-hunt-workbench。
+Server URL：https://<你的部署域名>/api/mcp
+请求头：Authorization: Bearer <YOUR_API_TOKEN>
+配置完成后，请先执行一次只读查询来验证连接，并告诉我是否连接成功。未经我明确确认，请不要创建、修改或删除任何数据。
 ```
 
-4. 先让 Agent 执行一次只读查询，确认连接和账户隔离正常。
+> API Token 相当于账户密码，请勿分享给不受信任的 Agent，也不要提交到代码仓库。
 
 连接后，Agent 可以调用以下 MCP 工具：
 
