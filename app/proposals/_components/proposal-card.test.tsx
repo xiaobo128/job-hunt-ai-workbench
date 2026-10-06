@@ -44,3 +44,36 @@ test("rejected status proposal is read-only", () => {
   assert.match(markup, /该建议已被拒绝，未修改申请/);
   assert.doesNotMatch(markup, /确认并执行/);
 });
+
+test("pending recruitment event proposal renders user-facing event details and immediate execution action", () => {
+  const proposal: ProposalCardData = {
+    ...pendingProposal,
+    type: AgentProposalType.APPLICATION_EVENT_APPEND,
+    sourceType: "RECRUITMENT_EMAIL",
+    evidenceText: "Subject: 在线测评邀请\nSender: recruiter@example.com\nReceived-At: 2026-10-06T09:00\n\n请于 2026-10-20 前完成测评。",
+    payloadJson: JSON.stringify({
+      eventType: "ASSESSMENT",
+      title: "在线测评邀请",
+      deadlineAt: "2026-10-20T23:59:00+08:00",
+      detailsJson: JSON.stringify({
+        content: "请于 2026-10-20 前完成测评。",
+        requirements: ["请准备身份证"],
+        extraction: {
+          schedule: { type: "DEADLINE", startAt: null, endAt: "2026-10-20T23:59:00+08:00", rawText: "2026-10-20" },
+          deliveryMode: "ONLINE",
+          onlineUrl: "https://assessment.example.com/start",
+          offlineAddress: null,
+          actions: ["请于 2026-10-20 前完成测评"]
+        }
+      })
+    })
+  };
+
+  const markup = renderToStaticMarkup(<ProposalCard proposal={proposal} />);
+  assert.match(markup, /新增通知/);
+  assert.match(markup, /在线测评邀请/);
+  assert.match(markup, /测评/);
+  assert.match(markup, /确认并执行/);
+  assert.match(markup, /查看通知原文/);
+  assert.doesNotMatch(markup, /APPLICATION_EVENT_APPEND/);
+});

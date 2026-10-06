@@ -3,7 +3,7 @@ import test from "node:test";
 import { AgentProposalStatus, AgentProposalType } from "@prisma/client";
 import { AgentProposalError, applicationEventProposalPayloadSchema, applicationStatusProposalPayloadSchema, assertProposalExecutable, executeProposalMutation, ownedProposalWhere } from "./agent-proposals";
 import { proposeApplicationStatusUpdate } from "./application-status-proposals";
-import { buildProposalConfirmationUrl } from "../proposal-confirmation-url";
+import { buildProposalConfirmationUrl, createConfirmableProposal, requireProposalConfirmationAppUrl } from "../proposal-confirmation-url";
 import { updateApplicationStatus } from "./applications";
 
 const ownedConfirmed = {
@@ -47,6 +47,24 @@ test("agent creates an application status proposal without executing it", async 
 
 test("proposal confirmation URLs are absolute and point to one encoded proposal", () => {
   assert.equal(buildProposalConfirmationUrl("https://workbench.example.com/", "proposal/with spaces"), "https://workbench.example.com/proposals/proposal%2Fwith%20spaces");
+});
+
+test("proposal creation configuration rejects missing or non-HTTP APP_URL", () => {
+  assert.throws(() => requireProposalConfirmationAppUrl(null), /APP_URL_REQUIRED/);
+  assert.throws(() => requireProposalConfirmationAppUrl("file:///tmp/workbench"), /APP_URL_INVALID/);
+  assert.equal(requireProposalConfirmationAppUrl("https://workbench.example.com"), "https://workbench.example.com");
+});
+
+test("missing APP_URL prevents proposal creation", async () => {
+  let created = 0;
+  await assert.rejects(createConfirmableProposal({
+    appUrl: null,
+    createProposal: async () => {
+      created += 1;
+      return { proposalId: "proposal-1" };
+    }
+  }), /APP_URL_REQUIRED/);
+  assert.equal(created, 0);
 });
 
 test("proposal detail lookup scopes both proposal and application ownership", () => {

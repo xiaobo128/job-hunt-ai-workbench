@@ -32,6 +32,7 @@ assert.deepEqual(tools.map((tool) => tool.name).sort(), [
   "get_today_application_events",
   "get_upcoming_deadlines",
   "list_applications",
+  "propose_recruitment_event",
   "propose_application_status_update",
   "update_application_status"
 ]);

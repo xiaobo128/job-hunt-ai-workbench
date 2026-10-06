@@ -8,7 +8,18 @@ import { ConfirmedResumeDocumentError, loadConfirmedResumeDocument } from "@/lib
 import { uniqueCriticalEvents } from "@/lib/workflow";
 import { formatWallClockDateTime } from "@/lib/wall-clock";
 import { getRuntimeConfig } from "@/lib/env";
-import { buildProposalConfirmationUrl } from "@/lib/proposal-confirmation-url";
+import {
+  buildProposalConfirmationUrl,
+  createConfirmableProposal,
+  ProposalConfirmationConfigurationError
+} from "@/lib/proposal-confirmation-url";
+import { extractRecruitmentEvent } from "@/lib/ai";
+import {
+  createRecruitmentEventProposal,
+  proposeRecruitmentEvent,
+  RecruitmentEventProposalError,
+  type ProposeRecruitmentEventInput
+} from "@/lib/recruitment-event-proposals";
 
 const emptyInput = fromJsonSchema<Record<string, never>>({ type: "object", additionalProperties: false });
 const applicationIdInput = fromJsonSchema<{ applicationId: string }>({
@@ -52,6 +63,18 @@ const proposeApplicationStatusUpdateInput = fromJsonSchema<ApplicationStatusProp
     submissionChannel: { type: "string", maxLength: 2000 }
   },
   required: ["applicationId", "requestedStage"],
+  additionalProperties: false
+});
+const proposeRecruitmentEventInput = fromJsonSchema<ProposeRecruitmentEventInput>({
+  type: "object",
+  properties: {
+    applicationId: { type: "string", minLength: 1 },
+    subject: { type: "string", maxLength: 500 },
+    sender: { type: "string", maxLength: 500 },
+    receivedAt: { type: "string", maxLength: 100 },
+    content: { type: "string", minLength: 1, maxLength: 50_000 }
+  },
+  required: ["applicationId", "content"],
   additionalProperties: false
 });
 
@@ -316,6 +339,87 @@ export const mcpHandler = createMcpHandler(({ authInfo }) => {
       } catch (cause) {
         if (cause instanceof AgentProposalError) return proposalError(cause);
         return error("write_failed", "Unable to execute the confirmed proposal.");
+      }
+    }
+  );
+
+  server.registerTool(
+    "propose_recruitment_event",
+    {
+      description: "Use this tool to record a recruitment email or notification for one explicitly selected application; it is not an application-stage update. First use list_applications: call this tool only when the user's context identifies one unique application, ask the user to clarify when multiple applications match, and stop when none match. Never auto-match by a company hint or create an application. This tool creates only a PENDING application-event proposal and never writes an Event or changes Application.currentStage. The agent and its Bearer token cannot confirm the proposal: the user must open the returned confirmationUrl in an authenticated web session. Web confirmation immediately executes the stored event and writes it to Notifications, so after confirmation do not call append_application_event. If the notification also implies a stage change, create a separate propose_application_status_update proposal; never fold that stage change into this tool.",
+      inputSchema: proposeRecruitmentEventInput,
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false }
+    },
+    async (input) => {
+      const authenticatedUserId = requireUserId();
+      if (!authenticatedUserId) return error("unauthorized", "Authentication is required.");
+
+      try {
+        const proposal = await createConfirmableProposal({
+          appUrl: getRuntimeConfig().appUrl,
+          createProposal: () => proposeRecruitmentEvent({
+            userId: authenticatedUserId,
+            input,
+            dependencies: {
+              findOwnedApplication: async ({ userId: ownerId, applicationId }) => {
+                const application = await prisma.application.findFirst({
+                  where: { id: applicationId, jobLead: { ownerId } },
+                  select: {
+                    id: true,
+                    currentStage: true,
+                    jobLead: {
+                      select: {
+                        status: true,
+                        companyName: true,
+                        roleTitle: true,
+                        owner: {
+                          select: {
+                            aiProvider: true,
+                            aiApiKey: true,
+                            aiApiBaseUrl: true,
+                            aiForwardHost: true,
+                            aiModel: true,
+                            aiVisionModel: true
+                          }
+                        }
+                      }
+                    }
+                  }
+                });
+                if (!application) return null;
+                return {
+                  applicationId: application.id,
+                  currentStage: application.currentStage,
+                  jobLeadStage: application.jobLead.status,
+                  companyName: application.jobLead.companyName,
+                  roleTitle: application.jobLead.roleTitle,
+                  aiSettings: {
+                    provider: application.jobLead.owner.aiProvider,
+                    apiKey: application.jobLead.owner.aiApiKey,
+                    apiBaseUrl: application.jobLead.owner.aiApiBaseUrl,
+                    forwardHost: application.jobLead.owner.aiForwardHost,
+                    model: application.jobLead.owner.aiModel,
+                    visionModel: application.jobLead.owner.aiVisionModel
+                  }
+                };
+              },
+              extractEvent: extractRecruitmentEvent,
+              createProposal: createRecruitmentEventProposal
+            }
+          })
+        });
+        return result(proposal);
+      } catch (cause) {
+        if (cause instanceof ProposalConfirmationConfigurationError) {
+          return error("configuration_error", "APP_URL must be a valid absolute HTTP(S) URL before creating confirmation links.");
+        }
+        if (cause instanceof RecruitmentEventProposalError) {
+          if (cause.code === "NOT_FOUND") return error("not_found", "Application not found.");
+          if (cause.code === "APPLICATION_CLOSED") return error("application_closed", "Closed or rejected applications cannot receive recruitment event proposals.");
+          if (cause.code === "CONTENT_REQUIRED") return error("invalid_content", "Recruitment notification content is required.");
+          return error("unknown_event_type", "The notification does not contain a supported recruitment event type.");
+        }
+        return error("proposal_failed", "Unable to create the recruitment event proposal.");
       }
     }
   );

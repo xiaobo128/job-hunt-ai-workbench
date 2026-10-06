@@ -4,7 +4,7 @@ import { getStageLabel } from "@/lib/constants";
 import { getEventTypeLabel } from "@/lib/event-types";
 import { formatDate } from "@/lib/format";
 import { formatWallClockDisplay } from "@/lib/wall-clock";
-import { confirmProposalAction, rejectProposalAction } from "../actions";
+import { confirmProposalAction, confirmRecruitmentEventProposalAction, rejectProposalAction } from "../actions";
 
 export type ProposalCardData = {
   id: string;
@@ -47,10 +47,10 @@ export function ProposalCard({ proposal }: { proposal: ProposalCardData }) {
 
       {proposal.status === AgentProposalStatus.PENDING ? (
         <div className="mt-4 flex gap-3">
-          <form action={confirmProposalAction}>
+          <form action={proposal.type === AgentProposalType.APPLICATION_EVENT_APPEND ? confirmRecruitmentEventProposalAction : confirmProposalAction}>
             <input type="hidden" name="proposalId" value={proposal.id} />
             <button className="rounded-xl bg-ink px-4 py-2.5 text-sm font-medium text-white">
-              {proposal.type === AgentProposalType.APPLICATION_STATUS_UPDATE ? "确认并执行" : "确认"}
+              确认并执行
             </button>
           </form>
           <form action={rejectProposalAction}>
@@ -109,6 +109,7 @@ function ProposalChange({ type, payloadJson, currentStage }: { type: AgentPropos
   const schedule = extraction ? parseObject(extraction.schedule) : null;
   const deliveryMode = textValue(extraction?.deliveryMode);
   const onlineUrl = textValue(extraction?.onlineUrl);
+  const offlineAddress = textValue(extraction?.offlineAddress);
   const actions = textList(extraction?.actions);
   const requirements = textList(details?.requirements);
 
@@ -116,9 +117,11 @@ function ProposalChange({ type, payloadJson, currentStage }: { type: AgentPropos
     <section className="mt-4 rounded-2xl bg-slate-50 p-4">
       <h3 className="text-sm font-medium text-ink">即将发生的变化</h3>
       <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+        <ChangeField label="新增通知" value={textValue(payload.title)} />
         <ChangeField label="事件类型" value={eventType ? getEventTypeLabel(eventType) : null} />
         <ScheduleChange schedule={schedule} />
         <ChangeField label="方式" value={deliveryModeLabel(deliveryMode)} />
+        <ChangeField label="地点" value={offlineAddress} />
         <ChangeField label="后续动作（原文摘录）" value={actions.length ? actions.join("；") : null} />
         <ChangeField label="要求事项（原文摘录）" value={requirements.length ? requirements.join("；") : null} />
         {onlineUrl ? <div><dt className="text-xs font-medium text-slate-500">链接</dt><dd className="mt-1"><a href={onlineUrl} target="_blank" rel="noreferrer" className="text-sm font-medium text-ink underline underline-offset-4">打开会议链接</a></dd></div> : null}

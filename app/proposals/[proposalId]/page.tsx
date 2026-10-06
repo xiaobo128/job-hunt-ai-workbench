@@ -19,7 +19,7 @@ export default async function ProposalDetailPage({ params }: { params: Promise<{
 
   if (!proposal) notFound();
 
-  return <PageShell title="确认 Agent 建议" description="请核对这一条建议。状态变更确认后会立即执行，无需回到 Agent 再次操作。" action={<Link href="/proposals" className="inline-flex rounded-2xl border border-line px-4 py-3 text-sm font-medium text-ink">返回待确认事项</Link>}>
+  return <PageShell title="确认 Agent 建议" description="请核对这一条建议。确认后会立即执行，无需回到 Agent 再次操作。" action={<Link href="/proposals" className="inline-flex rounded-2xl border border-line px-4 py-3 text-sm font-medium text-ink">返回待确认事项</Link>}>
     <ProposalCard proposal={proposal} />
   </PageShell>;
 }

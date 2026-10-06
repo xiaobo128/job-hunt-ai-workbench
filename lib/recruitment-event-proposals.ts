@@ -1,5 +1,5 @@
-import { AgentProposalType, EventType } from "@prisma/client";
-import type { RecruitmentEventExtraction } from "@/lib/ai";
+import { AgentProposalType, ApplicationStage, EventType } from "@prisma/client";
+import type { RecruitmentEventExtraction, UserAiSettings } from "@/lib/ai";
 import { createAgentProposal } from "@/lib/domain/agent-proposals";
 
 export type RecruitmentEventApplication = {
@@ -14,6 +14,8 @@ export type RecruitmentEventProposalResult =
       proposalId: string;
       status: string;
       application: RecruitmentEventApplication;
+      eventType: EventType;
+      title: string;
     }
   | {
       created: false;
@@ -32,21 +34,24 @@ export async function createRecruitmentEventProposal(input: {
   receivedAt: string | null;
   content: string;
   identifier?: string | null;
-}): Promise<RecruitmentEventProposalResult> {
+}, dependencies: {
+  createProposal: typeof createAgentProposal;
+} = { createProposal: createAgentProposal }): Promise<RecruitmentEventProposalResult> {
   const eventType = toExistingEventType(input.extraction.eventType);
   if (!eventType) {
     return { created: false, reason: "UNKNOWN_EVENT_TYPE" };
   }
 
   const schedule = eventScheduleFields(input.extraction.schedule);
-  const proposal = await createAgentProposal({
+  const title = proposalTitle(input.subject, input.extraction);
+  const proposal = await dependencies.createProposal({
     userId: input.userId,
     input: {
       applicationId: input.application.applicationId,
       type: AgentProposalType.APPLICATION_EVENT_APPEND,
       payload: {
         eventType,
-        title: proposalTitle(input.subject, input.extraction),
+        title,
         eventTime: schedule.eventTime,
         windowStartAt: schedule.windowStartAt,
         deadlineAt: schedule.deadlineAt,
@@ -81,7 +86,108 @@ export async function createRecruitmentEventProposal(input: {
     created: true,
     proposalId: proposal.id,
     status: proposal.status,
-    application: input.application
+    application: input.application,
+    eventType,
+    title
+  };
+}
+
+export type ProposeRecruitmentEventInput = {
+  applicationId: string;
+  subject?: string;
+  sender?: string;
+  receivedAt?: string;
+  content: string;
+};
+
+type OwnedRecruitmentEventApplication = RecruitmentEventApplication & {
+  currentStage: ApplicationStage;
+  jobLeadStage: ApplicationStage;
+  aiSettings: UserAiSettings;
+};
+
+type ProposeRecruitmentEventDependencies = {
+  findOwnedApplication: (input: { userId: string; applicationId: string }) => Promise<OwnedRecruitmentEventApplication | null>;
+  extractEvent: (input: {
+    subject: string;
+    sender: string;
+    receivedAt: string | null;
+    content: string;
+    settings: UserAiSettings;
+  }) => Promise<{ data: RecruitmentEventExtraction }>;
+  createProposal: typeof createRecruitmentEventProposal;
+};
+
+export class RecruitmentEventProposalError extends Error {
+  constructor(public readonly code: "NOT_FOUND" | "APPLICATION_CLOSED" | "CONTENT_REQUIRED" | "UNKNOWN_EVENT_TYPE") {
+    super(code);
+    this.name = "RecruitmentEventProposalError";
+  }
+}
+
+/** Coordinates extraction and proposal creation for one explicitly selected application. */
+export async function proposeRecruitmentEvent({
+  userId,
+  input,
+  dependencies
+}: {
+  userId: string;
+  input: ProposeRecruitmentEventInput;
+  dependencies: ProposeRecruitmentEventDependencies;
+}) {
+  if (!input.content.trim()) throw new RecruitmentEventProposalError("CONTENT_REQUIRED");
+
+  const application = await dependencies.findOwnedApplication({ userId, applicationId: input.applicationId });
+  if (!application) throw new RecruitmentEventProposalError("NOT_FOUND");
+  if (
+    application.currentStage === ApplicationStage.CLOSED ||
+    application.currentStage === ApplicationStage.REJECTED ||
+    application.jobLeadStage === ApplicationStage.CLOSED ||
+    application.jobLeadStage === ApplicationStage.REJECTED
+  ) {
+    throw new RecruitmentEventProposalError("APPLICATION_CLOSED");
+  }
+
+  const subject = input.subject?.trim() ?? "";
+  const sender = input.sender?.trim() ?? "";
+  const receivedAt = input.receivedAt?.trim() || null;
+  const extracted = await dependencies.extractEvent({
+    subject,
+    sender,
+    receivedAt,
+    content: input.content,
+    settings: application.aiSettings
+  });
+  const proposal = await dependencies.createProposal({
+    userId,
+    extraction: extracted.data,
+    application: {
+      applicationId: application.applicationId,
+      companyName: application.companyName,
+      roleTitle: application.roleTitle
+    },
+    subject,
+    receivedAt,
+    content: input.content
+  });
+  if (!proposal.created) throw new RecruitmentEventProposalError("UNKNOWN_EVENT_TYPE");
+
+  return {
+    proposalId: proposal.proposalId,
+    status: proposal.status,
+    applicationId: application.applicationId,
+    companyName: application.companyName,
+    roleTitle: application.roleTitle,
+    eventType: proposal.eventType,
+    title: proposal.title,
+    schedule: extracted.data.schedule,
+    intent: extracted.data.intent,
+    deliveryMode: extracted.data.deliveryMode,
+    onlineUrl: extracted.data.onlineUrl,
+    offlineAddress: extracted.data.offlineAddress,
+    actions: extracted.data.actions,
+    requirements: extracted.data.requirements,
+    confirmationRequired: true as const
   };
 }
 
