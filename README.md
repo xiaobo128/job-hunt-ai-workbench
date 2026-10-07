@@ -238,6 +238,7 @@ API Token 相当于工作台的数据访问凭证，只应交给你信任的 Age
 | `propose_job_application_create` | 准备新增岗位和申请，不会直接创建记录 |
 | `propose_application_status_update` | 准备修改申请阶段 |
 | `propose_recruitment_event` | 准备新增招聘通知，不会同时改变申请阶段 |
+| `propose_recruitment_event_update` | 准备修改已有招聘通知；可由服务端根据接收时间和有效期推导截止时间 |
 
 这些工具会返回 `confirmationUrl`。登录用户在 Web 中确认后，系统会立即执行对应修改；Agent 不需要在确认后再次调用执行工具。
 

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { AgentProposalStatus, AgentProposalType } from "@prisma/client";
-import { AgentProposalError, applicationEventProposalPayloadSchema, applicationStatusProposalPayloadSchema, assertProposalExecutable, executeProposalMutation, ownedProposalWhere } from "./agent-proposals";
+import { AgentProposalError, applicationEventProposalPayloadSchema, applicationEventUpdateProposalPayloadSchema, applicationStatusProposalPayloadSchema, assertProposalExecutable, executeProposalMutation, ownedProposalWhere } from "./agent-proposals";
 import { proposeApplicationStatusUpdate } from "./application-status-proposals";
 import { buildProposalConfirmationUrl, createConfirmableProposal, requireProposalConfirmationAppUrl } from "../proposal-confirmation-url";
 import { updateApplicationStatus } from "./applications";
@@ -75,7 +75,7 @@ test("proposal detail lookup scopes both proposal and application ownership", ()
     OR: [
       { type: "JOB_APPLICATION_CREATE", applicationId: null },
       {
-        type: { in: ["APPLICATION_STATUS_UPDATE", "APPLICATION_EVENT_APPEND"] },
+        type: { in: ["APPLICATION_STATUS_UPDATE", "APPLICATION_EVENT_APPEND", "APPLICATION_EVENT_UPDATE"] },
         applicationId: { not: null },
         application: { jobLead: { ownerId: "user-a" } }
       }
@@ -105,6 +105,20 @@ test("proposal payloads are exact typed payloads and event payloads contain no s
   assert.throws(() => applicationEventProposalPayloadSchema.parse({ ...event, requestedStage: "OFFER" }));
 });
 
+test("event update payload is strict, non-empty, and cannot reassign an Application or change stage", () => {
+  const payload = applicationEventUpdateProposalPayloadSchema.parse({
+    eventId: "event-1",
+    patch: { deadlineAt: "2026-10-08T14:20" }
+  });
+  assert.deepEqual(payload, { eventId: "event-1", patch: { deadlineAt: "2026-10-08T14:20" } });
+  assert.throws(() => applicationEventUpdateProposalPayloadSchema.parse({ eventId: "event-1", patch: {} }));
+  assert.throws(() => applicationEventUpdateProposalPayloadSchema.parse({ eventId: "event-1", patch: { applicationId: "application-2" } }));
+  assert.throws(() => applicationEventUpdateProposalPayloadSchema.parse({ eventId: "event-1", patch: { targetApplicationId: "application-2" } }));
+  assert.throws(() => applicationEventUpdateProposalPayloadSchema.parse({ eventId: "event-1", patch: { requestedStage: "OFFER" } }));
+  assert.throws(() => applicationEventUpdateProposalPayloadSchema.parse({ eventId: "event-1", patch: { deadlineAt: "not-a-date" } }));
+  assert.throws(() => applicationEventUpdateProposalPayloadSchema.parse({ eventId: "event-1", patch: { title: "updated" }, unknown: true }));
+});
+
 test("proposal execution reuses the domain services and event append cannot change stage", async () => {
   const calls: Array<{ service: string; input: Record<string, unknown> }> = [];
   const services = {
@@ -125,6 +139,36 @@ test("proposal execution reuses the domain services and event append cannot chan
   assert.equal(calls[0].input.requestedStage, "AI_INTERVIEW");
   assert.equal(calls[1].service, "event");
   assert.equal("requestedStage" in calls[1].input, false);
+});
+
+test("event update execution uses the stored patch and returns the same Event id", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const result = await executeProposalMutation({
+    type: AgentProposalType.APPLICATION_EVENT_UPDATE,
+    payloadJson: JSON.stringify({ eventId: "event-1", patch: { deadlineAt: "2026-10-08T14:20:00" } }),
+    userId: "user-a",
+    applicationId: "application-1",
+    transaction: {} as never,
+    services: {
+      updateApplicationEvent: async (input: Record<string, unknown>) => {
+        calls.push(input);
+        return { event: { id: "event-1", applicationId: "application-1" }, jobLeadId: "job-1" } as never;
+      }
+    }
+  });
+
+  assert.equal(result.eventId, "event-1");
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].expectedApplicationId, "application-1");
+  assert.equal("targetApplicationId" in calls[0], false);
+  assert.equal("requestedStage" in calls[0], false);
+  assert.equal(((calls[0].patch as Record<string, unknown>).deadlineAt as Date).toISOString(), "2026-10-08T14:20:00.000Z");
+});
+
+test("rejected and replayed event update proposals cannot execute", () => {
+  const updateProposal = { ...ownedConfirmed, type: AgentProposalType.APPLICATION_EVENT_UPDATE };
+  assert.equal(errorCode(() => assertProposalExecutable({ proposal: { ...updateProposal, status: AgentProposalStatus.REJECTED }, userId: "user-a" })), "REJECTED");
+  assert.equal(errorCode(() => assertProposalExecutable({ proposal: { ...updateProposal, status: AgentProposalStatus.EXECUTED }, userId: "user-a" })), "ALREADY_EXECUTED");
 });
 
 test("the canonical status service updates the application and keeps the job lead stage in sync", async () => {

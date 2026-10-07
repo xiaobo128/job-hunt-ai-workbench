@@ -78,6 +78,42 @@ test("pending recruitment event proposal renders user-facing event details and i
   assert.doesNotMatch(markup, /APPLICATION_EVENT_APPEND/);
 });
 
+test("pending Event update renders owned before and after values without internal names", () => {
+  const proposal: ProposalCardData = {
+    ...pendingProposal,
+    type: AgentProposalType.APPLICATION_EVENT_UPDATE,
+    sourceType: "AGENT_EVENT_UPDATE",
+    payloadJson: JSON.stringify({ eventId: "event-1", patch: { deadlineAt: "2026-10-08T14:20:00" } })
+  };
+  const markup = renderToStaticMarkup(<ProposalCard proposal={proposal} reviewEvent={{
+    id: "event-1",
+    applicationId: "application-1",
+    eventType: "ASSESSMENT",
+    status: "ACTIVE",
+    title: "在线测评",
+    eventTime: null,
+    windowStartAt: null,
+    deadlineAt: null,
+    receivedAt: new Date("2026-10-01T14:20:00.000Z"),
+    relativeValidityMinutes: 7 * 24 * 60,
+    detailsJson: JSON.stringify({ content: "原文", requirements: ["身份证"] })
+  }} />);
+
+  assert.match(markup, /修改招聘通知/);
+  assert.match(markup, /通知：在线测评/);
+  assert.match(markup, /修改前/);
+  assert.match(markup, /修改后/);
+  assert.match(markup, /截止时间/);
+  assert.match(markup, /未单独记录/);
+  assert.match(markup, /10\/08 14:20/);
+  assert.match(markup, /接收时间/);
+  assert.match(markup, /10\/01 14:20/);
+  assert.match(markup, /7 天/);
+  assert.match(markup, /确认并修改/);
+  assert.match(markup, /拒绝/);
+  assert.doesNotMatch(markup, /APPLICATION_EVENT_UPDATE|payloadJson|AGENT_EVENT_UPDATE/);
+});
+
 test("pending job creation proposal renders reviewable facts without implementation jargon", () => {
   const proposal: ProposalCardData = {
     ...pendingProposal,

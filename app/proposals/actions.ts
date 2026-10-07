@@ -62,6 +62,26 @@ export async function confirmRecruitmentEventProposalAction(formData: FormData) 
   redirect("/notifications");
 }
 
+export async function confirmApplicationEventUpdateProposalAction(formData: FormData) {
+  const user = await requireSessionUser();
+  const id = proposalId(formData);
+  await requireOwnedProposalType(user.id, id, AgentProposalType.APPLICATION_EVENT_UPDATE);
+  await confirmAgentProposal({ userId: user.id, proposalId: id });
+  const updated = await executeConfirmedAgentProposal({
+    userId: user.id,
+    proposalId: id,
+    expectedType: AgentProposalType.APPLICATION_EVENT_UPDATE
+  });
+  revalidatePath("/");
+  revalidatePath("/board");
+  revalidatePath("/notifications");
+  revalidatePath(`/notifications/${updated.applicationId}`);
+  if (updated.jobLeadId) revalidatePath(`/jobs/${updated.jobLeadId}`);
+  revalidatePath("/proposals");
+  revalidatePath(`/proposals/${id}`);
+  redirect(`/notifications/${updated.applicationId}`);
+}
+
 export async function rejectProposalAction(formData: FormData) {
   const user = await requireSessionUser();
   const id = proposalId(formData);

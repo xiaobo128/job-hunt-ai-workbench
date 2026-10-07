@@ -1,7 +1,7 @@
-import { ApplicationStage, AgentProposalStatus, AgentProposalType, EventType, Prisma, SourceType } from "@prisma/client";
+import { ApplicationStage, AgentProposalStatus, AgentProposalType, EventStatus, EventType, Prisma, SourceType } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../db";
-import { appendApplicationEvent, ApplicationNotFoundError, createJobApplication, updateApplicationStatus } from "./applications";
+import { appendApplicationEvent, ApplicationNotFoundError, createJobApplication, updateApplicationEvent, updateApplicationStatus } from "./applications";
 import { parseWallClockDateTime } from "../wall-clock";
 
 const optionalText = z.string().trim().max(2_000).nullable().optional();
@@ -47,6 +47,24 @@ export const applicationEventProposalPayloadSchema = z.object({
     }, "detailsJson must be a JSON object")
 }).strict();
 
+export const applicationEventUpdatePatchSchema = z.object({
+  eventType: z.nativeEnum(EventType).optional(),
+  status: z.nativeEnum(EventStatus).optional(),
+  title: z.string().trim().min(1).max(500).optional(),
+  eventTime: optionalDate,
+  windowStartAt: optionalDate,
+  deadlineAt: optionalDate,
+  receivedAt: optionalDate,
+  relativeValidityMinutes: z.number().int().positive().max(60 * 24 * 365).nullable().optional(),
+  content: z.string().trim().max(50_000).optional(),
+  requirements: z.array(z.string().trim().min(1).max(2_000)).max(200).optional()
+}).strict().refine((patch) => Object.keys(patch).length > 0, "Event update patch must contain at least one field");
+
+export const applicationEventUpdateProposalPayloadSchema = z.object({
+  eventId: z.string().trim().min(1),
+  patch: applicationEventUpdatePatchSchema
+}).strict();
+
 export const jobApplicationCreateProposalPayloadSchema = z.object({
   job: z.object({
     companyName: z.string().trim().min(1).max(500),
@@ -80,16 +98,19 @@ const proposalSourceSchema = z.object({
 export const createAgentProposalInputSchema = z.discriminatedUnion("type", [
   z.object({ applicationId: z.string().trim().min(1), type: z.literal(AgentProposalType.APPLICATION_STATUS_UPDATE), payload: applicationStatusProposalPayloadSchema, source: proposalSourceSchema }).strict(),
   z.object({ applicationId: z.string().trim().min(1), type: z.literal(AgentProposalType.APPLICATION_EVENT_APPEND), payload: applicationEventProposalPayloadSchema, source: proposalSourceSchema }).strict(),
+  z.object({ applicationId: z.string().trim().min(1), type: z.literal(AgentProposalType.APPLICATION_EVENT_UPDATE), payload: applicationEventUpdateProposalPayloadSchema, source: proposalSourceSchema }).strict(),
   z.object({ type: z.literal(AgentProposalType.JOB_APPLICATION_CREATE), payload: jobApplicationCreateProposalPayloadSchema, source: proposalSourceSchema }).strict()
 ]);
 
 type StatusPayload = z.infer<typeof applicationStatusProposalPayloadSchema>;
 type EventPayload = z.infer<typeof applicationEventProposalPayloadSchema>;
+export type ApplicationEventUpdatePayload = z.infer<typeof applicationEventUpdateProposalPayloadSchema>;
 export type JobApplicationCreatePayload = z.infer<typeof jobApplicationCreateProposalPayloadSchema>;
-type ProposalPayload = StatusPayload | EventPayload | JobApplicationCreatePayload;
+type ProposalPayload = StatusPayload | EventPayload | ApplicationEventUpdatePayload | JobApplicationCreatePayload;
 type ApplicationDomainServices = {
   updateApplicationStatus: typeof updateApplicationStatus;
   appendApplicationEvent: typeof appendApplicationEvent;
+  updateApplicationEvent: typeof updateApplicationEvent;
   createJobApplication: typeof createJobApplication;
 };
 
@@ -113,7 +134,7 @@ export function ownedProposalAccessWhere(userId: string): Prisma.AgentProposalWh
     OR: [
       { type: AgentProposalType.JOB_APPLICATION_CREATE, applicationId: null },
       {
-        type: { in: [AgentProposalType.APPLICATION_STATUS_UPDATE, AgentProposalType.APPLICATION_EVENT_APPEND] },
+        type: { in: [AgentProposalType.APPLICATION_STATUS_UPDATE, AgentProposalType.APPLICATION_EVENT_APPEND, AgentProposalType.APPLICATION_EVENT_UPDATE] },
         applicationId: { not: null },
         application: { jobLead: { ownerId: userId } }
       }
@@ -124,6 +145,7 @@ export function ownedProposalAccessWhere(userId: string): Prisma.AgentProposalWh
 function parsePayload(type: AgentProposalType, payload: unknown): ProposalPayload {
   if (type === AgentProposalType.APPLICATION_STATUS_UPDATE) return applicationStatusProposalPayloadSchema.parse(payload);
   if (type === AgentProposalType.APPLICATION_EVENT_APPEND) return applicationEventProposalPayloadSchema.parse(payload);
+  if (type === AgentProposalType.APPLICATION_EVENT_UPDATE) return applicationEventUpdateProposalPayloadSchema.parse(payload);
   return jobApplicationCreateProposalPayloadSchema.parse(payload);
 }
 
@@ -157,6 +179,18 @@ export async function createAgentProposal({ userId, input }: { userId: string; i
     select: { id: true }
   });
   if (!application) throw new ApplicationNotFoundError();
+
+  if (parsed.type === AgentProposalType.APPLICATION_EVENT_UPDATE) {
+    const event = await prisma.event.findFirst({
+      where: {
+        id: parsed.payload.eventId,
+        applicationId: application.id,
+        application: { jobLead: { ownerId: userId } }
+      },
+      select: { id: true }
+    });
+    if (!event) throw new ApplicationNotFoundError();
+  }
 
   return prisma.agentProposal.create({
     data: {
@@ -232,20 +266,27 @@ export async function executeProposalMutation({
   userId,
   applicationId,
   transaction,
-  services = { updateApplicationStatus, appendApplicationEvent, createJobApplication }
+  services
 }: {
   type: AgentProposalType;
   payloadJson: string;
   userId: string;
   applicationId: string | null;
   transaction: Prisma.TransactionClient;
-  services?: ApplicationDomainServices;
+  services?: Partial<ApplicationDomainServices>;
 }) {
+  const domainServices: ApplicationDomainServices = {
+    updateApplicationStatus,
+    appendApplicationEvent,
+    updateApplicationEvent,
+    createJobApplication,
+    ...services
+  };
   const payload = deserializePayload(type, payloadJson);
   if (type === AgentProposalType.JOB_APPLICATION_CREATE) {
     if (applicationId !== null) throw new AgentProposalError("INVALID_PAYLOAD");
     const createPayload = payload as JobApplicationCreatePayload;
-    const created = await services.createJobApplication({
+    const created = await domainServices.createJobApplication({
       userId,
       review: { needsReview: false },
       job: {
@@ -261,7 +302,7 @@ export async function executeProposalMutation({
   if (!applicationId) throw new AgentProposalError("INVALID_PAYLOAD");
   if (type === AgentProposalType.APPLICATION_STATUS_UPDATE) {
     const statusPayload = payload as StatusPayload;
-    const application = await services.updateApplicationStatus({
+    const application = await domainServices.updateApplicationStatus({
       userId,
       applicationId,
       ...statusPayload,
@@ -270,8 +311,25 @@ export async function executeProposalMutation({
     return { type, applicationId: application.id, jobLeadId: null, eventId: null };
   }
 
+  if (type === AgentProposalType.APPLICATION_EVENT_UPDATE) {
+    const updatePayload = payload as ApplicationEventUpdatePayload;
+    const updated = await domainServices.updateApplicationEvent({
+      userId,
+      eventId: updatePayload.eventId,
+      expectedApplicationId: applicationId,
+      patch: {
+        ...updatePayload.patch,
+        eventTime: toDate(updatePayload.patch.eventTime),
+        windowStartAt: toDate(updatePayload.patch.windowStartAt),
+        deadlineAt: toDate(updatePayload.patch.deadlineAt),
+        receivedAt: toDate(updatePayload.patch.receivedAt)
+      }
+    }, transaction);
+    return { type, applicationId, jobLeadId: updated.jobLeadId, eventId: updated.event.id };
+  }
+
   const eventPayload = payload as EventPayload;
-  const event = await services.appendApplicationEvent({
+  const event = await domainServices.appendApplicationEvent({
     userId,
     applicationId,
     ...eventPayload,
@@ -307,7 +365,7 @@ export async function executeConfirmedAgentProposalInTransaction({
   proposalId: string;
   expectedType?: AgentProposalType;
   transaction: Prisma.TransactionClient;
-  services?: ApplicationDomainServices;
+  services?: Partial<ApplicationDomainServices>;
 }) {
   const foundProposal = await tx.agentProposal.findFirst({
     where: { id: proposalId },

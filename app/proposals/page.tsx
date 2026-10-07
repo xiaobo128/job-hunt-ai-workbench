@@ -2,6 +2,7 @@ import { AgentProposalStatus } from "@prisma/client";
 import { PageShell } from "@/components/app-shell";
 import { prisma } from "@/lib/db";
 import { ownedProposalAccessWhere } from "@/lib/domain/agent-proposals";
+import { getOwnedProposalEventReviews } from "@/lib/proposal-event-review";
 import { requireSessionUser } from "@/lib/session";
 import { ProposalCard } from "./_components/proposal-card";
 
@@ -16,6 +17,7 @@ export default async function ProposalsPage() {
       id: true,
       type: true,
       payloadJson: true,
+      applicationId: true,
       sourceType: true,
       sourceIdentifier: true,
       evidenceText: true,
@@ -31,6 +33,7 @@ export default async function ProposalsPage() {
     orderBy: [{ status: "asc" }, { createdAt: "desc" }],
     take: 100
   });
+  const eventReviews = await getOwnedProposalEventReviews(user.id, proposals);
 
   return (
     <PageShell title="待确认事项" description="确认后，系统会按下方内容更新你的求职记录。">
@@ -38,7 +41,7 @@ export default async function ProposalsPage() {
         {proposals.length === 0 ? (
           <div className="rounded-3xl border border-line bg-white p-6 text-sm text-slate-500 shadow-card">暂无待确认事项。</div>
         ) : (
-          proposals.map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} />)
+          proposals.map((proposal) => <ProposalCard key={proposal.id} proposal={proposal} reviewEvent={eventReviews.get(proposal.id) ?? null} />)
         )}
       </div>
     </PageShell>

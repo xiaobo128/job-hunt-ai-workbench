@@ -3,8 +3,9 @@ import React from "react";
 import { getStageLabel } from "@/lib/constants";
 import { getEventTypeLabel } from "@/lib/event-types";
 import { formatDate } from "@/lib/format";
+import type { ProposalEventReview } from "@/lib/proposal-event-review";
 import { formatWallClockDisplay } from "@/lib/wall-clock";
-import { confirmJobApplicationCreateProposalAction, confirmProposalAction, confirmRecruitmentEventProposalAction, rejectProposalAction } from "../actions";
+import { confirmApplicationEventUpdateProposalAction, confirmJobApplicationCreateProposalAction, confirmProposalAction, confirmRecruitmentEventProposalAction, rejectProposalAction } from "../actions";
 
 export type ProposalCardData = {
   id: string;
@@ -21,7 +22,7 @@ export type ProposalCardData = {
   } | null;
 };
 
-export function ProposalCard({ proposal }: { proposal: ProposalCardData }) {
+export function ProposalCard({ proposal, reviewEvent = null }: { proposal: ProposalCardData; reviewEvent?: ProposalEventReview | null }) {
   const payload = parseObject(proposal.payloadJson);
   const createJob = proposal.type === AgentProposalType.JOB_APPLICATION_CREATE ? parseObject(payload?.job) : null;
   const companyName = proposal.application?.jobLead.companyName ?? textValue(createJob?.companyName) ?? "未提供公司";
@@ -42,10 +43,10 @@ export function ProposalCard({ proposal }: { proposal: ProposalCardData }) {
         </span>
       </div>
 
-      <ProposalChange type={proposal.type} payloadJson={proposal.payloadJson} currentStage={proposal.application?.currentStage ?? null} />
+      <ProposalChange type={proposal.type} payloadJson={proposal.payloadJson} currentStage={proposal.application?.currentStage ?? null} reviewEvent={reviewEvent} />
       {proposal.type === AgentProposalType.APPLICATION_EVENT_APPEND ? (
         <NotificationOriginal sourceType={proposal.sourceType} sourceIdentifier={proposal.sourceIdentifier} evidenceText={proposal.evidenceText} />
-      ) : proposal.type === AgentProposalType.JOB_APPLICATION_CREATE ? (
+      ) : proposal.type === AgentProposalType.JOB_APPLICATION_CREATE || proposal.type === AgentProposalType.APPLICATION_EVENT_UPDATE ? (
         null
       ) : (
         <ProposalSource sourceType={proposal.sourceType} sourceIdentifier={proposal.sourceIdentifier} evidenceText={proposal.evidenceText} />
@@ -56,7 +57,11 @@ export function ProposalCard({ proposal }: { proposal: ProposalCardData }) {
           <form action={confirmationAction(proposal.type)}>
             <input type="hidden" name="proposalId" value={proposal.id} />
             <button className="rounded-xl bg-ink px-4 py-2.5 text-sm font-medium text-white">
-              {proposal.type === AgentProposalType.JOB_APPLICATION_CREATE ? "确认并创建" : "确认并执行"}
+              {proposal.type === AgentProposalType.JOB_APPLICATION_CREATE
+                ? "确认并创建"
+                : proposal.type === AgentProposalType.APPLICATION_EVENT_UPDATE
+                  ? "确认并修改"
+                  : "确认并执行"}
             </button>
           </form>
           <form action={rejectProposalAction}>
@@ -74,6 +79,7 @@ export function ProposalCard({ proposal }: { proposal: ProposalCardData }) {
 export function proposalTypeLabel(type: AgentProposalType) {
   if (type === AgentProposalType.APPLICATION_STATUS_UPDATE) return "更新申请阶段";
   if (type === AgentProposalType.APPLICATION_EVENT_APPEND) return "新增申请事件";
+  if (type === AgentProposalType.APPLICATION_EVENT_UPDATE) return "修改招聘通知";
   return "新增求职记录";
 }
 
@@ -94,7 +100,7 @@ function proposalStatusMessage(status: AgentProposalStatus) {
   return "";
 }
 
-function ProposalChange({ type, payloadJson, currentStage }: { type: AgentProposalType; payloadJson: string; currentStage: ApplicationStage | null }) {
+function ProposalChange({ type, payloadJson, currentStage, reviewEvent }: { type: AgentProposalType; payloadJson: string; currentStage: ApplicationStage | null; reviewEvent: ProposalEventReview | null }) {
   const payload = parseObject(payloadJson);
   if (!payload) return <section className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">无法读取此项变更内容。</section>;
 
@@ -113,6 +119,10 @@ function ProposalChange({ type, payloadJson, currentStage }: { type: AgentPropos
 
   if (type === AgentProposalType.JOB_APPLICATION_CREATE) {
     return <JobApplicationCreateChange payload={payload} />;
+  }
+
+  if (type === AgentProposalType.APPLICATION_EVENT_UPDATE) {
+    return <ApplicationEventUpdateChange payload={payload} event={reviewEvent} />;
   }
 
   const details = parseObject(textValue(payload.detailsJson));
@@ -140,6 +150,91 @@ function ProposalChange({ type, payloadJson, currentStage }: { type: AgentPropos
       </dl>
     </section>
   );
+}
+
+function ApplicationEventUpdateChange({ payload, event }: { payload: Record<string, unknown>; event: ProposalEventReview | null }) {
+  const patch = parseObject(payload.patch);
+  if (!patch || !event) {
+    return <section className="mt-4 rounded-2xl bg-rose-50 p-4 text-sm text-rose-700">无法读取待修改的招聘通知。</section>;
+  }
+
+  const details = parseObject(event.detailsJson) ?? {};
+  const current = {
+    eventType: event.eventType,
+    status: event.status,
+    title: event.title,
+    eventTime: event.eventTime,
+    windowStartAt: event.windowStartAt,
+    deadlineAt: event.deadlineAt,
+    receivedAt: event.receivedAt,
+    relativeValidityMinutes: event.relativeValidityMinutes,
+    content: typeof details.content === "string" ? details.content : "",
+    requirements: textList(details.requirements)
+  };
+  const fields = Object.keys(patch);
+  const contextualFields = fields.includes("deadlineAt") && event.receivedAt && event.relativeValidityMinutes
+    ? ["deadlineAt", "receivedAt", "relativeValidityMinutes", ...fields]
+    : fields;
+  const visibleFields = [...new Set(contextualFields)];
+
+  return (
+    <section className="mt-4 rounded-2xl bg-slate-50 p-4">
+      <h3 className="text-sm font-medium text-ink">修改招聘通知</h3>
+      <p className="mt-1 text-sm text-slate-600">通知：{event.title}</p>
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <EventUpdateValues title="修改前" fields={visibleFields} values={current} />
+        <EventUpdateValues title="修改后" fields={visibleFields} values={{ ...current, ...patch }} />
+      </div>
+    </section>
+  );
+}
+
+function EventUpdateValues({ title, fields, values }: { title: string; fields: string[]; values: Record<string, unknown> }) {
+  return (
+    <div className="rounded-2xl border border-line bg-white p-4">
+      <h4 className="text-sm font-medium text-ink">{title}</h4>
+      <dl className="mt-3 space-y-3">
+        {fields.map((field) => <ChangeField key={field} label={eventUpdateFieldLabel(field)} value={eventUpdateFieldValue(field, values[field])} />)}
+      </dl>
+    </div>
+  );
+}
+
+function eventUpdateFieldLabel(field: string) {
+  if (field === "eventType") return "通知类型";
+  if (field === "status") return "状态";
+  if (field === "title") return "标题";
+  if (field === "eventTime") return "安排时间";
+  if (field === "windowStartAt") return "开放时间";
+  if (field === "deadlineAt") return "截止时间";
+  if (field === "receivedAt") return "接收时间";
+  if (field === "relativeValidityMinutes") return "有效期";
+  if (field === "content") return "原始邮件正文";
+  if (field === "requirements") return "要求事项";
+  return "变更字段";
+}
+
+function eventUpdateFieldValue(field: string, value: unknown) {
+  if (field === "eventType") return typeof value === "string" ? getEventTypeLabel(value) : null;
+  if (field === "status") return value === "ACTIVE" ? "待处理" : value === "COMPLETED" ? "已完成" : value === "IGNORED" ? "已忽略" : null;
+  if (field === "eventTime" || field === "windowStartAt" || field === "receivedAt") {
+    return value instanceof Date || typeof value === "string" ? formatWallClockDisplay(value) : "未设置";
+  }
+  if (field === "deadlineAt") {
+    return value instanceof Date || typeof value === "string" ? formatWallClockDisplay(value) : "未单独记录";
+  }
+  if (field === "relativeValidityMinutes") return typeof value === "number" ? relativeValidityLabel(value) : "未设置";
+  if (field === "requirements") {
+    const values = textList(value);
+    return values.length ? values.join("；") : "未提供";
+  }
+  return typeof value === "string" && value ? value : "未提供";
+}
+
+function relativeValidityLabel(minutes: number) {
+  if (minutes % (24 * 60) === 0) return `${minutes / (24 * 60)} 天`;
+  if (minutes % 60 === 0) return `${minutes / 60} 小时`;
+  return `${minutes} 分钟`;
 }
 
 function JobApplicationCreateChange({ payload }: { payload: Record<string, unknown> }) {
@@ -179,6 +274,7 @@ function TextListSection({ title, values }: { title: string; values: string[] })
 
 function confirmationAction(type: AgentProposalType) {
   if (type === AgentProposalType.APPLICATION_EVENT_APPEND) return confirmRecruitmentEventProposalAction;
+  if (type === AgentProposalType.APPLICATION_EVENT_UPDATE) return confirmApplicationEventUpdateProposalAction;
   if (type === AgentProposalType.JOB_APPLICATION_CREATE) return confirmJobApplicationCreateProposalAction;
   return confirmProposalAction;
 }

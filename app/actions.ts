@@ -46,7 +46,13 @@ import { redirect } from "next/navigation";
 import { saveUpload } from "@/lib/storage";
 import { generateApiTokenValue, sha256 } from "@/lib/agent-auth";
 import { triggerOutboundWebhook } from "@/lib/agent-webhooks";
-import { appendApplicationEvent, createJobApplication, updateApplicationStatus } from "@/lib/domain/applications";
+import {
+  appendApplicationEvent,
+  ApplicationEventUpdateError,
+  createJobApplication,
+  updateApplicationEvent,
+  updateApplicationStatus
+} from "@/lib/domain/applications";
 import { parseWallClockDate, parseWallClockDateTime } from "@/lib/wall-clock";
 
 const EXCEL_IMPORT_MAX_BYTES = 5 * 1024 * 1024;
@@ -2521,64 +2527,47 @@ export async function updateNotificationEvent(
     }
   }
 
-  const event = await prisma.event.findFirst({
-    where: {
-      id: eventId,
-      application: { jobLead: { ownerId: user.id } }
-    },
-    select: {
-      id: true,
-      applicationId: true,
-      detailsJson: true,
-      application: { select: { jobLeadId: true } }
-    }
-  });
-
-  if (!event) {
-    return { status: "error", message: "未找到这条通知。" };
-  }
-
-  const targetApplication = await prisma.application.findFirst({
-    where: { id: applicationId, jobLead: { ownerId: user.id } },
-    select: { id: true, jobLeadId: true }
-  });
-
-  if (!targetApplication) {
-    return { status: "error", message: "请选择当前账户下的关联岗位。" };
-  }
-
-  const existingDetails = safeEventDetails(event.detailsJson);
-  const content = typeof contentInput === "string" ? contentInput.trim() : existingDetails.content;
+  const content = typeof contentInput === "string" ? contentInput.trim() : undefined;
   const requirements = JSON.parse(multilineToJson(requirementsText)) as string[];
-
-  await prisma.event.update({
-    where: { id: event.id },
-    data: {
-      applicationId: targetApplication.id,
-      title,
-      eventType,
-      status,
-      eventTime: eventTime.value,
-      windowStartAt: windowStartAt.value,
-      deadlineAt: deadlineAt.value,
-      receivedAt: receivedAt.value,
-      relativeValidityMinutes,
-      detailsJson: JSON.stringify({
+  let updated;
+  try {
+    updated = await updateApplicationEvent({
+      userId: user.id,
+      eventId,
+      targetApplicationId: applicationId,
+      patch: {
+        title,
+        eventType,
+        status,
+        eventTime: eventTime.value,
+        windowStartAt: windowStartAt.value,
+        deadlineAt: deadlineAt.value,
+        receivedAt: receivedAt.value,
+        relativeValidityMinutes,
         content,
         requirements
-      })
+      }
+    });
+  } catch (error) {
+    if (error instanceof ApplicationEventUpdateError) {
+      if (error.code === "NOT_FOUND") return { status: "error", message: "未找到这条通知。" };
+      if (error.code === "TARGET_APPLICATION_NOT_FOUND") return { status: "error", message: "请选择当前账户下的关联岗位。" };
+      if (error.code === "INVALID_TIME_RANGE") return { status: "error", message: "开始时间不得晚于截止时间。" };
+      if (error.code === "INVALID_RELATIVE_VALIDITY") return { status: "error", message: "有效时长必须是正整数分钟，且不能超过一年。" };
+      if (error.code === "RECEIVED_AT_REQUIRED") return { status: "error", message: "填写有效时长时必须填写接收时间。" };
     }
-  });
+    throw error;
+  }
 
   revalidatePath("/");
   revalidatePath("/board");
   revalidatePath("/notifications");
-  revalidatePath(`/notifications/${event.applicationId}`);
-  revalidatePath(`/notifications/${targetApplication.id}`);
-  revalidatePath(`/jobs/${event.application.jobLeadId}`);
-  revalidatePath(`/jobs/${targetApplication.jobLeadId}`);
+  revalidatePath(`/notifications/${updated.previousApplicationId}`);
+  revalidatePath(`/notifications/${updated.applicationId}`);
+  revalidatePath(`/jobs/${updated.previousJobLeadId}`);
+  revalidatePath(`/jobs/${updated.jobLeadId}`);
 
-  return { status: "success", applicationId: targetApplication.id };
+  return { status: "success", applicationId: updated.applicationId };
 }
 
 export async function deleteNotificationEvent(eventId: string) {
@@ -2604,13 +2593,4 @@ export async function deleteNotificationEvent(eventId: string) {
   revalidatePath("/notifications");
   revalidatePath(`/notifications/${event.applicationId}`);
   revalidatePath(`/jobs/${event.application.jobLeadId}`);
-}
-
-function safeEventDetails(detailsJson: string) {
-  try {
-    const parsed = JSON.parse(detailsJson) as { content?: unknown };
-    return { content: typeof parsed.content === "string" ? parsed.content : "" };
-  } catch {
-    return { content: "" };
-  }
 }

@@ -1,9 +1,14 @@
-import { ApplicationStage } from "@prisma/client";
+import { ApplicationStage, EventStatus, EventType } from "@prisma/client";
 import { createMcpHandler, fromJsonSchema, McpServer } from "@modelcontextprotocol/server";
 import { prisma } from "@/lib/db";
 import { AgentProposalError, createAgentProposal, executeConfirmedAgentProposal } from "@/lib/domain/agent-proposals";
 import { ApplicationStatusProposalError, proposeApplicationStatusUpdate, type ApplicationStatusProposalInput } from "@/lib/domain/application-status-proposals";
 import { JobApplicationCreateProposalError, proposeJobApplicationCreate, type JobApplicationCreateProposalInput } from "@/lib/domain/job-application-create-proposals";
+import {
+  proposeRecruitmentEventUpdate,
+  RecruitmentEventUpdateProposalError,
+  type ProposeRecruitmentEventUpdateInput
+} from "@/lib/domain/application-event-update-proposals";
 import { getCalendarEventDates, getDashboardEventDueAt, resolveEventTime } from "@/lib/event-time";
 import { ConfirmedResumeDocumentError, loadConfirmedResumeDocument } from "@/lib/resume-parsing/confirmed";
 import { buildJobHuntOverview } from "@/lib/job-hunt-overview";
@@ -78,6 +83,32 @@ const proposeRecruitmentEventInput = fromJsonSchema<ProposeRecruitmentEventInput
     content: { type: "string", minLength: 1, maxLength: 50_000 }
   },
   required: ["applicationId", "content"],
+  additionalProperties: false
+});
+const proposeRecruitmentEventUpdateInput = fromJsonSchema<ProposeRecruitmentEventUpdateInput>({
+  type: "object",
+  properties: {
+    applicationId: { type: "string", minLength: 1 },
+    eventId: { type: "string", minLength: 1 },
+    patch: {
+      type: "object",
+      properties: {
+        eventType: { type: "string", enum: Object.values(EventType) },
+        status: { type: "string", enum: Object.values(EventStatus) },
+        title: { type: "string", minLength: 1, maxLength: 500 },
+        eventTime: { type: ["string", "null"] },
+        windowStartAt: { type: ["string", "null"] },
+        deadlineAt: { type: ["string", "null"] },
+        receivedAt: { type: ["string", "null"] },
+        relativeValidityMinutes: { type: ["integer", "null"], minimum: 1, maximum: 60 * 24 * 365 },
+        content: { type: "string", maxLength: 50_000 },
+        requirements: { type: "array", items: { type: "string", minLength: 1, maxLength: 2_000 }, maxItems: 200 }
+      },
+      additionalProperties: false
+    },
+    deriveDeadlineFromRelativeValidity: { type: "boolean" }
+  },
+  required: ["applicationId", "eventId"],
   additionalProperties: false
 });
 const proposeJobApplicationCreateInput = fromJsonSchema<JobApplicationCreateProposalInput>({
@@ -521,6 +552,65 @@ export const mcpHandler = createMcpHandler(({ authInfo }) => {
           return error("unknown_event_type", "The notification does not contain a supported recruitment event type.");
         }
         return error("proposal_failed", "Unable to create the recruitment event proposal.");
+      }
+    }
+  );
+
+  server.registerTool(
+    "propose_recruitment_event_update",
+    {
+      description: "Create one PENDING human-confirmation proposal that updates an existing recruitment Event in place. First call get_application and pass the exact applicationId and eventId. Set deriveDeadlineFromRelativeValidity to let the server calculate deadlineAt from the Event's final receivedAt and relativeValidityMinutes; never calculate that deadline yourself. This tool never appends, deletes, or reassigns an Event, and never changes Application.currentStage. The authenticated user reviews and immediately executes the exact stored patch through confirmationUrl.",
+      inputSchema: proposeRecruitmentEventUpdateInput,
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false }
+    },
+    async (input) => {
+      const authenticatedUserId = requireUserId();
+      if (!authenticatedUserId) return error("unauthorized", "Authentication is required.");
+
+      try {
+        const proposal = await createConfirmableProposal({
+          appUrl: getRuntimeConfig().appUrl,
+          createProposal: () => proposeRecruitmentEventUpdate({
+            userId: authenticatedUserId,
+            input,
+            dependencies: {
+              findOwnedEvent: ({ userId: ownerId, eventId }) => prisma.event.findFirst({
+                where: { id: eventId, application: { jobLead: { ownerId } } },
+                select: {
+                  id: true,
+                  applicationId: true,
+                  eventType: true,
+                  status: true,
+                  title: true,
+                  eventTime: true,
+                  windowStartAt: true,
+                  deadlineAt: true,
+                  receivedAt: true,
+                  relativeValidityMinutes: true,
+                  detailsJson: true,
+                  application: { select: { jobLead: { select: { companyName: true, roleTitle: true } } } }
+                }
+              }),
+              createProposal: createAgentProposal
+            }
+          })
+        });
+        return result(proposal);
+      } catch (cause) {
+        if (cause instanceof ProposalConfirmationConfigurationError) {
+          return error("configuration_error", "APP_URL must be a valid absolute HTTP(S) URL before creating confirmation links.");
+        }
+        if (cause instanceof RecruitmentEventUpdateProposalError) {
+          if (cause.code === "NOT_FOUND") return error("not_found", "Event not found.");
+          if (cause.code === "APPLICATION_MISMATCH") return error("application_mismatch", "The Event does not belong to the supplied applicationId.");
+          if (cause.code === "AMBIGUOUS_DEADLINE_SOURCE") return error("ambiguous_deadline_source", "Do not provide patch.deadlineAt when deriving it from relative validity.");
+          if (cause.code === "MISSING_RECEIVED_AT") return error("missing_received_at", "A receivedAt value is required to derive the deadline.");
+          if (cause.code === "INVALID_RELATIVE_VALIDITY") return error("invalid_relative_validity", "A positive integer relativeValidityMinutes value of at most one year is required.");
+          if (cause.code === "INVALID_TIME_RANGE") return error("invalid_time_range", "windowStartAt cannot be later than deadlineAt.");
+          if (cause.code === "EFFECTIVE_DUE_CHANGED") return error("effective_due_changed", "Materializing the deadline would change the Event's effective due time.");
+          return error("no_changes", "The normalized patch would not change the Event.");
+        }
+        return error("proposal_failed", "Unable to create the recruitment event update proposal.");
       }
     }
   );

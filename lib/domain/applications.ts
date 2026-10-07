@@ -1,10 +1,18 @@
-import { ApplicationStage, EventType, Prisma, SourceType } from "@prisma/client";
+import { ApplicationStage, EventStatus, EventType, Prisma, SourceType } from "@prisma/client";
 import { prisma } from "../db";
+import type { EventTimeInput } from "../event-time";
 
 export class ApplicationNotFoundError extends Error {
   constructor() {
     super("Application not found");
     this.name = "ApplicationNotFoundError";
+  }
+}
+
+export class ApplicationEventUpdateError extends Error {
+  constructor(public readonly code: "NOT_FOUND" | "APPLICATION_MISMATCH" | "TARGET_APPLICATION_NOT_FOUND" | "INVALID_TIME_RANGE" | "INVALID_RELATIVE_VALIDITY" | "RECEIVED_AT_REQUIRED") {
+    super(code);
+    this.name = "ApplicationEventUpdateError";
   }
 }
 
@@ -183,4 +191,148 @@ export async function appendApplicationEvent({ userId, applicationId, ...event }
       ...event
     }
   });
+}
+
+export type ApplicationEventPatch = {
+  eventType?: EventType;
+  status?: EventStatus;
+  title?: string;
+  eventTime?: Date | null;
+  windowStartAt?: Date | null;
+  deadlineAt?: Date | null;
+  receivedAt?: Date | null;
+  relativeValidityMinutes?: number | null;
+  content?: string;
+  requirements?: string[];
+};
+
+export function validateApplicationEventTime(values: EventTimeInput) {
+  if (values.windowStartAt && values.deadlineAt && values.windowStartAt > values.deadlineAt) {
+    throw new ApplicationEventUpdateError("INVALID_TIME_RANGE");
+  }
+  if (
+    values.relativeValidityMinutes !== null &&
+    (!Number.isInteger(values.relativeValidityMinutes) || values.relativeValidityMinutes <= 0 || values.relativeValidityMinutes > 60 * 24 * 365)
+  ) {
+    throw new ApplicationEventUpdateError("INVALID_RELATIVE_VALIDITY");
+  }
+  if (values.relativeValidityMinutes !== null && values.receivedAt === null) {
+    throw new ApplicationEventUpdateError("RECEIVED_AT_REQUIRED");
+  }
+}
+
+type UpdateApplicationEventInput = {
+  userId: string;
+  eventId: string;
+  expectedApplicationId?: string;
+  targetApplicationId?: string;
+  patch: ApplicationEventPatch;
+};
+
+/** Updates one owned canonical event in place. Web and confirmed Agent proposals share this mutation. */
+export async function updateApplicationEvent({
+  userId,
+  eventId,
+  expectedApplicationId,
+  targetApplicationId,
+  patch
+}: UpdateApplicationEventInput, transaction?: Prisma.TransactionClient) {
+  const run = async (tx: Prisma.TransactionClient) => {
+    const event = await tx.event.findFirst({
+      where: { id: eventId, application: { jobLead: { ownerId: userId } } },
+      select: {
+        id: true,
+        applicationId: true,
+        eventTime: true,
+        windowStartAt: true,
+        deadlineAt: true,
+        receivedAt: true,
+        relativeValidityMinutes: true,
+        detailsJson: true,
+        application: { select: { jobLeadId: true } }
+      }
+    });
+
+    if (!event) throw new ApplicationEventUpdateError("NOT_FOUND");
+    if (expectedApplicationId !== undefined && event.applicationId !== expectedApplicationId) {
+      throw new ApplicationEventUpdateError("APPLICATION_MISMATCH");
+    }
+
+    const finalEventTime = patch.eventTime === undefined ? event.eventTime : patch.eventTime;
+    const finalWindowStartAt = patch.windowStartAt === undefined ? event.windowStartAt : patch.windowStartAt;
+    const finalDeadlineAt = patch.deadlineAt === undefined ? event.deadlineAt : patch.deadlineAt;
+    const finalReceivedAt = patch.receivedAt === undefined ? event.receivedAt : patch.receivedAt;
+    const finalRelativeValidityMinutes = patch.relativeValidityMinutes === undefined
+      ? event.relativeValidityMinutes
+      : patch.relativeValidityMinutes;
+
+    validateApplicationEventTime({
+      eventTime: finalEventTime,
+      windowStartAt: finalWindowStartAt,
+      deadlineAt: finalDeadlineAt,
+      receivedAt: finalReceivedAt,
+      relativeValidityMinutes: finalRelativeValidityMinutes
+    });
+
+    let targetApplication: { id: string; jobLeadId: string } | null = null;
+    if (targetApplicationId !== undefined) {
+      targetApplication = await tx.application.findFirst({
+        where: { id: targetApplicationId, jobLead: { ownerId: userId } },
+        select: { id: true, jobLeadId: true }
+      });
+      if (!targetApplication) throw new ApplicationEventUpdateError("TARGET_APPLICATION_NOT_FOUND");
+    }
+
+    const patchesDetails = patch.content !== undefined || patch.requirements !== undefined;
+    const detailsJson = patchesDetails
+      ? JSON.stringify({
+          ...parseEventDetailsObject(event.detailsJson),
+          ...(patch.content !== undefined ? { content: patch.content } : {}),
+          ...(patch.requirements !== undefined ? { requirements: patch.requirements } : {})
+        })
+      : event.detailsJson;
+
+    const updatedEvent = await tx.event.update({
+      where: { id: event.id },
+      data: {
+        ...(targetApplication ? { applicationId: targetApplication.id } : {}),
+        ...(patch.eventType !== undefined ? { eventType: patch.eventType } : {}),
+        ...(patch.status !== undefined ? { status: patch.status } : {}),
+        ...(patch.title !== undefined ? { title: patch.title } : {}),
+        ...(patch.eventTime !== undefined ? { eventTime: patch.eventTime } : {}),
+        ...(patch.windowStartAt !== undefined ? { windowStartAt: patch.windowStartAt } : {}),
+        ...(patch.deadlineAt !== undefined ? { deadlineAt: patch.deadlineAt } : {}),
+        ...(patch.receivedAt !== undefined ? { receivedAt: patch.receivedAt } : {}),
+        ...(patch.relativeValidityMinutes !== undefined ? { relativeValidityMinutes: patch.relativeValidityMinutes } : {}),
+        ...(patchesDetails ? { detailsJson } : {})
+      },
+      select: { id: true, applicationId: true }
+    });
+
+    return {
+      event: updatedEvent,
+      previousApplicationId: event.applicationId,
+      previousJobLeadId: event.application.jobLeadId,
+      applicationId: updatedEvent.applicationId,
+      jobLeadId: targetApplication?.jobLeadId ?? event.application.jobLeadId,
+      finalTime: {
+        eventTime: finalEventTime,
+        windowStartAt: finalWindowStartAt,
+        deadlineAt: finalDeadlineAt,
+        receivedAt: finalReceivedAt,
+        relativeValidityMinutes: finalRelativeValidityMinutes
+      }
+    };
+  };
+
+  return transaction ? run(transaction) : prisma.$transaction(run);
+}
+
+function parseEventDetailsObject(detailsJson: string): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(detailsJson);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
 }
